@@ -1,0 +1,6 @@
+puzzle,size,runs_requested,runs_completed,primary_variables,auxiliary_variables,full_cnf_clauses,sat_calls,decisions,propagations,conflicts,backtracks,deduction_steps,solver_runtime_ms,solver_runtime_ms_min,solver_runtime_ms_max,solver_runtime_ms_stdev,end_to_end_runtime_ms,end_to_end_runtime_ms_min,end_to_end_runtime_ms_max,end_to_end_runtime_ms_stdev,terminal,error
+3x3_binary_chain.json,3,5,5,9,0,16,24,0,132,8,0,8,0.2816,0.2735,0.2893,0.0063,0.4899,0.4659,0.5194,0.0185,SOLVED,
+3x3_counting_chain.json,3,5,5,9,66,185,24,0,924,8,0,8,2.5662,2.2849,3.1182,0.3129,3.3811,2.9766,4.1949,0.4617,SOLVED,
+4x4_easy_training.json,4,5,5,16,315,1611,93,222,8578,33,18,15,57.6069,54.8186,62.8803,2.9209,61.9681,58.7553,67.6077,3.1558,SOLVED,
+4x4_medium_links.json,4,5,5,16,681,4838,153,813,31737,173,295,15,348.6541,343.4979,355.3423,3.9386,370.9804,365.6437,378.2235,4.2702,SOLVED,
+5x5_deep_inference.json,5,5,5,25,1442,13493,268,5658,176415,3831,7086,24,5682.1659,5539.2461,5988.8086,161.3123,5734.0662,5589.3594,6041.603,162.0978,SOLVED,

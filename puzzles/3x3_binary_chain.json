@@ -1,0 +1,66 @@
+{
+  "roster": "football",
+  "title": "3x3 Binary Foundations",
+  "size": 3,
+  "solution": {
+    "A1": "INNOCENT",
+    "B1": "CRIMINAL",
+    "C1": "INNOCENT",
+    "A2": "CRIMINAL",
+    "B2": "INNOCENT",
+    "C2": "INNOCENT",
+    "A3": "CRIMINAL",
+    "B3": "CRIMINAL",
+    "C3": "INNOCENT"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "FACT",
+      "person": "B1",
+      "status": "CRIMINAL"
+    },
+    "B1": {
+      "type": "DIFFERENT",
+      "person": "B1",
+      "other": "C1"
+    },
+    "C1": {
+      "type": "SAME",
+      "person": "B1",
+      "other": "A2"
+    },
+    "A2": {
+      "type": "DIFFERENT",
+      "person": "A2",
+      "other": "B2"
+    },
+    "B2": {
+      "type": "SAME",
+      "person": "B2",
+      "other": "C2"
+    },
+    "C2": {
+      "type": "DIFFERENT",
+      "person": "C2",
+      "other": "A3"
+    },
+    "A3": {
+      "type": "SAME",
+      "person": "A3",
+      "other": "B3"
+    },
+    "B3": {
+      "type": "DIFFERENT",
+      "person": "B3",
+      "other": "C3"
+    },
+    "C3": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    }
+  }
+}

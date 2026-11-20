@@ -1,0 +1,237 @@
+{
+  "roster": "football",
+  "title": "5x5 Deep Inference",
+  "size": 5,
+  "solution": {
+    "A1": "CRIMINAL",
+    "B1": "CRIMINAL",
+    "C1": "INNOCENT",
+    "D1": "INNOCENT",
+    "E1": "CRIMINAL",
+    "A2": "CRIMINAL",
+    "B2": "INNOCENT",
+    "C2": "CRIMINAL",
+    "D2": "INNOCENT",
+    "E2": "CRIMINAL",
+    "A3": "INNOCENT",
+    "B3": "INNOCENT",
+    "C3": "INNOCENT",
+    "D3": "CRIMINAL",
+    "E3": "CRIMINAL",
+    "A4": "INNOCENT",
+    "B4": "CRIMINAL",
+    "C4": "INNOCENT",
+    "D4": "INNOCENT",
+    "E4": "CRIMINAL",
+    "A5": "INNOCENT",
+    "B5": "CRIMINAL",
+    "C5": "INNOCENT",
+    "D5": "INNOCENT",
+    "E5": "CRIMINAL"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "INCLUDED_COUNT",
+      "person": "A3",
+      "k": 3,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "A4"
+      }
+    },
+    "A3": {
+      "type": "OVERLAP_COUNT",
+      "k": 4,
+      "overlap_k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "D3"
+      },
+      "left": {
+        "type": "COMMON_NEIGHBORS",
+        "person": "D3",
+        "other": "C2"
+      }
+    },
+    "D2": {
+      "type": "OVERLAP_COUNT",
+      "k": 4,
+      "overlap_k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "D4"
+      },
+      "left": {
+        "type": "COMMON_NEIGHBORS",
+        "person": "D4",
+        "other": "D5"
+      }
+    },
+    "C4": {
+      "type": "INCLUDED_COUNT",
+      "person": "B3",
+      "k": 4,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "B2"
+      }
+    },
+    "B3": {
+      "type": "CONNECTED_COUNT",
+      "k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "COLUMN",
+        "column": "B"
+      }
+    },
+    "B1": {
+      "type": "EXACTLY",
+      "k": 5,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "C3"
+      }
+    },
+    "D3": {
+      "type": "EXACTLY",
+      "k": 6,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "UNION",
+        "regions": [
+          {
+            "type": "ROW",
+            "row": 4
+          },
+          {
+            "type": "ROW",
+            "row": 5
+          }
+        ]
+      }
+    },
+    "C2": {
+      "type": "COUNT_COMPARE",
+      "operator": "GT",
+      "target_status": "CRIMINAL",
+      "left": {
+        "type": "NEIGHBORS",
+        "center": "B3"
+      },
+      "right": {
+        "type": "NEIGHBORS",
+        "center": "A1"
+      }
+    },
+    "B2": {
+      "type": "INCLUDED_COUNT",
+      "person": "C1",
+      "k": 4,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "B2"
+      }
+    },
+    "C1": {
+      "type": "INCLUDED_COUNT",
+      "person": "D1",
+      "k": 3,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "C1"
+      }
+    },
+    "A2": {
+      "type": "EXACTLY",
+      "k": 13,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "WHOLE_GRID"
+      }
+    },
+    "C3": {
+      "type": "SAME",
+      "person": "C3",
+      "other": "C4"
+    },
+    "C5": {
+      "type": "SAME",
+      "person": "C5",
+      "other": "D5"
+    },
+    "D1": {
+      "type": "SAME",
+      "person": "C1",
+      "other": "D1"
+    },
+    "A4": {
+      "type": "SAME",
+      "person": "A4",
+      "other": "C4"
+    },
+    "B4": {
+      "type": "DIFFERENT",
+      "person": "B4",
+      "other": "C4"
+    },
+    "D4": {
+      "type": "SAME",
+      "person": "D4",
+      "other": "D5"
+    },
+    "A5": {
+      "type": "SAME",
+      "person": "A5",
+      "other": "C5"
+    },
+    "B5": {
+      "type": "DIFFERENT",
+      "person": "B5",
+      "other": "C5"
+    },
+    "D5": {
+      "type": "FACT",
+      "person": "D1",
+      "status": "INNOCENT"
+    },
+    "E1": {
+      "type": "FACT",
+      "person": "E1",
+      "status": "CRIMINAL"
+    },
+    "E2": {
+      "type": "DIFFERENT",
+      "person": "E2",
+      "other": "D2"
+    },
+    "E3": {
+      "type": "SAME",
+      "person": "A3",
+      "other": "C3"
+    },
+    "E4": {
+      "type": "EXACTLY",
+      "k": 3,
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "E4"
+      }
+    },
+    "E5": {
+      "type": "FACT",
+      "person": "E5",
+      "status": "CRIMINAL"
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "roster": "football",
+  "title": "4x4 Rookie Training",
+  "size": 4,
+  "solution": {
+    "A1": "INNOCENT",
+    "B1": "INNOCENT",
+    "C1": "INNOCENT",
+    "D1": "CRIMINAL",
+    "A2": "INNOCENT",
+    "B2": "CRIMINAL",
+    "C2": "CRIMINAL",
+    "D2": "CRIMINAL",
+    "A3": "CRIMINAL",
+    "B3": "INNOCENT",
+    "C3": "INNOCENT",
+    "D3": "INNOCENT",
+    "A4": "INNOCENT",
+    "B4": "CRIMINAL",
+    "C4": "CRIMINAL",
+    "D4": "CRIMINAL"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "EXACTLY",
+      "k": 0,
+      "region": {
+        "type": "BETWEEN",
+        "person": "A1",
+        "other": "D1"
+      }
+    },
+    "B1": {
+      "type": "SAME",
+      "person": "B2",
+      "other": "C2"
+    },
+    "C1": {
+      "type": "AT_LEAST",
+      "k": 1,
+      "region": {
+        "type": "BETWEEN",
+        "person": "A2",
+        "other": "D2"
+      }
+    },
+    "B2": {
+      "type": "SAME",
+      "person": "B3",
+      "other": "C3"
+    },
+    "C2": {
+      "type": "AT_MOST",
+      "k": 1,
+      "region": {
+        "type": "BETWEEN",
+        "person": "A3",
+        "other": "D3"
+      }
+    },
+    "B3": {
+      "type": "SAME",
+      "person": "B4",
+      "other": "C4"
+    },
+    "C3": {
+      "type": "AT_LEAST",
+      "k": 1,
+      "region": {
+        "type": "BETWEEN",
+        "person": "A4",
+        "other": "D4"
+      }
+    },
+    "B4": {
+      "type": "INCLUDED_COUNT",
+      "person": "A2",
+      "k": 6,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "B2"
+      }
+    },
+    "C4": {
+      "type": "INCLUDED_COUNT",
+      "person": "D2",
+      "k": 4,
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "C1"
+      }
+    },
+    "A2": {
+      "type": "SAME",
+      "person": "A2",
+      "other": "D3"
+    },
+    "D2": {
+      "type": "SAME",
+      "person": "D2",
+      "other": "A3"
+    },
+    "D3": {
+      "type": "INCLUDED_COUNT",
+      "person": "A4",
+      "k": 3,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "B3"
+      }
+    },
+    "A3": {
+      "type": "INCLUDED_COUNT",
+      "person": "D4",
+      "k": 6,
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "C3"
+      }
+    },
+    "A4": {
+      "type": "FACT",
+      "person": "D1",
+      "status": "CRIMINAL"
+    },
+    "D4": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "D1": {
+      "type": "SAME",
+      "person": "D1",
+      "other": "D4"
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "title": "Ambiguous VAR check",
+  "roster": "football",
+  "size": 3,
+  "solution": {
+    "A1": "INNOCENT",
+    "B1": "INNOCENT",
+    "C1": "INNOCENT",
+    "A2": "INNOCENT",
+    "B2": "INNOCENT",
+    "C2": "INNOCENT",
+    "A3": "INNOCENT",
+    "B3": "INNOCENT",
+    "C3": "INNOCENT"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "B1": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "C1": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "A2": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "B2": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "C2": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "A3": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "B3": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    },
+    "C3": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "required_grid_sizes_v1",
+  "description": "Fixed comparison set: two 3x3 cases, two 4x4 cases, and one 5x5 stress case.",
+  "puzzles": [
+    "../puzzles/3x3_binary_chain.json",
+    "../puzzles/3x3_counting_chain.json",
+    "../puzzles/4x4_easy_training.json",
+    "../puzzles/4x4_medium_links.json",
+    "../puzzles/5x5_deep_inference.json"
+  ]
+}

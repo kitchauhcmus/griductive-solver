@@ -1,0 +1,104 @@
+{
+  "roster": "football",
+  "title": "3x3 Counting Trail",
+  "size": 3,
+  "solution": {
+    "A1": "INNOCENT",
+    "B1": "INNOCENT",
+    "C1": "CRIMINAL",
+    "A2": "CRIMINAL",
+    "B2": "INNOCENT",
+    "C2": "CRIMINAL",
+    "A3": "CRIMINAL",
+    "B3": "INNOCENT",
+    "C3": "CRIMINAL"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "AT_MOST",
+      "k": 0,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "B1"
+        ]
+      }
+    },
+    "B1": {
+      "type": "EXACTLY",
+      "k": 1,
+      "region": {
+        "type": "ROW",
+        "row": 1
+      }
+    },
+    "C1": {
+      "type": "AT_LEAST",
+      "k": 1,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "A2"
+        ]
+      }
+    },
+    "A2": {
+      "type": "EXACTLY",
+      "k": 1,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "A2",
+          "B2"
+        ]
+      }
+    },
+    "B2": {
+      "type": "AT_LEAST",
+      "k": 1,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "C2"
+        ]
+      }
+    },
+    "C2": {
+      "type": "AT_LEAST",
+      "k": 1,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "A3"
+        ]
+      }
+    },
+    "A3": {
+      "type": "EXACTLY",
+      "k": 1,
+      "region": {
+        "type": "EXPLICIT",
+        "cells": [
+          "A3",
+          "B3"
+        ]
+      }
+    },
+    "B3": {
+      "type": "EXACTLY",
+      "k": 2,
+      "region": {
+        "type": "ROW",
+        "row": 3
+      }
+    },
+    "C3": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "INNOCENT"
+    }
+  }
+}
