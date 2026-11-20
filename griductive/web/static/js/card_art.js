@@ -51,58 +51,117 @@ function updatePortrait(layer, url) {
   layer.querySelector(".photo-frame")?.remove();
   layer.classList.remove("photo");
   if (!url) return;
+
   const image = new Image();
   image.alt = "";
   image.decoding = "async";
-  // Reveal only a successfully decoded image. Until then the SVG stays visible.
+  // Keep the kit visible until the portrait has decoded.
   image.onload = async () => {
     try { await image.decode(); } catch { return; }
     if (url !== layer.dataset.url || !image.naturalWidth) return;
-    const frame = element("span","photo-frame");
-    frame.style.setProperty("--ratio", image.naturalWidth / image.naturalHeight);
+    const frame = element("span", "photo-frame");
     frame.append(image);
     layer.append(frame);
     layer.classList.add("photo");
   };
-  image.onerror = () => { /* The kit is already visible. */ };
   image.src = url;
 }
 
-export function createCard(player) {
-  const button = element("button","shield");
-  button.type = "button";
-  button.dataset.cell = player.id;
-  const shell = element("span","card-shell");
-  const face = element("span","card-face");
-  const art = element("span","art");
+function buildShield(player, preview = false) {
+  const shield = element(preview ? "div" : "button", preview ? "shield card-preview" : "shield");
+  if (preview) shield.setAttribute("aria-hidden", "true");
+  else shield.type = "button";
+
+  const motion = element("span", "card-motion");
+  const shell = element("span", "card-shell");
+  const face = element("span", "card-face");
+  const art = element("span", "art");
+  const rating = element("span", "rating");
+
   art.append(jersey(player));
-  const rating = element("span","rating");
-  rating.append(element("b","",player.ovr ?? "–"),element("small","",player.profession));
-  face.append(art,element("span","wash"),rating,element("span","coord",player.id),
-              element("span","plate",player.name),element("span","state-chip"),element("span","foil"));
+  rating.append(element("b", "", player.ovr ?? "–"), element("small", "", player.profession));
+  face.append(
+    art, element("span", "wash"), element("span", "inner-trim"), rating,
+    element("span", "coord", player.id), element("span", "clue-indicator", "Clue"),
+    element("span", "plate", player.name), element("span", "status-crest"),
+    element("span", "clue-strip"), element("span", "foil")
+  );
   shell.append(face);
-  button.append(shell);
-  button.addEventListener("pointermove",event=>{
-    if (event.pointerType !== "mouse") return;
-    const box=button.getBoundingClientRect();
-    button.style.setProperty("--tilt", ((event.clientX-box.left)/box.width*12-6)+"deg");
-  });
-  updateCard(button,player);
-  return button;
+  motion.append(shell);
+  if (!preview) motion.append(element("span", "card-back"));
+  shield.append(motion);
+  return shield;
 }
 
-export function updateCard(button, player) {
-  const previous=button.dataset.status;
-  button.dataset.status=player.status;
-  button.querySelector(".state-chip").textContent=player.status;
-  const summary=[player.id, player.name, player.profession, player.ovr, player.tier, player.status].filter(Boolean).join(" · ");
-  button.title=player.clue ? summary+" — "+player.clue.text : summary;
-  button.setAttribute("aria-label",button.title);
-  updatePortrait(button.querySelector(".art"),player.portrait);
-  if(previous==="UNKNOWN" && player.status!=="UNKNOWN"){
-    button.classList.add("flipping");
-    setTimeout(()=>button.classList.remove("flipping"),850);
-  } else if(player.status==="UNKNOWN"){
-    button.classList.remove("flipping");
+function renderFace(shield, player) {
+  shield.dataset.status = player.status;
+  shield.querySelector(".status-crest").textContent = player.status;
+  shield.querySelector(".clue-indicator").hidden = !player.clue;
+  const strip = shield.querySelector(".clue-strip");
+  strip.hidden = !player.clue;
+  strip.textContent = player.clue?.text ?? "";
+  updatePortrait(shield.querySelector(".art"), player.portrait);
+}
+
+export function createCardPreview(player) {
+  const shield = buildShield(player, true);
+  renderFace(shield, player);
+  return shield;
+}
+
+export function createCard(player, { select, verdict, preview }) {
+  const slot = element("div", "player-slot");
+  slot.dataset.cell = player.id;
+
+  const shield = buildShield(player);
+  shield.dataset.cell = player.id;
+  shield.addEventListener("click", () => select(player.id));
+  shield.addEventListener("pointermove", event => {
+    if (event.pointerType !== "mouse") return;
+    const box = shield.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width - .5;
+    const y = (event.clientY - box.top) / box.height - .5;
+    shield.style.setProperty("--tilt-x", -y * 15 + "deg");
+    shield.style.setProperty("--tilt-y", x * 19 + "deg");
+  });
+
+  const actions = element("div", "quick-verdicts");
+  actions.setAttribute("role", "group");
+  actions.setAttribute("aria-label", "Quick verdicts for " + player.name);
+  for (const status of ["INNOCENT", "CRIMINAL"]) {
+    const button = element("button", "", status);
+    button.type = "button";
+    button.dataset.verdict = status;
+    button.setAttribute("aria-label", "Mark " + player.name + " " + status.toLowerCase());
+    button.addEventListener("click", () => verdict(player.id, status));
+    actions.append(button);
+  }
+
+  slot.addEventListener("pointerenter", () => preview(player.id));
+  slot.addEventListener("pointerleave", () => preview(null));
+  slot.addEventListener("focusin", () => preview(player.id));
+  slot.addEventListener("focusout", event => {
+    if (!slot.contains(event.relatedTarget)) preview(null);
+  });
+  slot.append(shield, element("span", "card-burst"), actions);
+  updateCard(slot, player);
+  return slot;
+}
+
+export function updateCard(slot, player) {
+  const previous = slot.dataset.status;
+  const shield = slot.querySelector(".shield");
+  slot.dataset.status = player.status;
+  slot.toggleAttribute("data-clue", Boolean(player.clue));
+  slot.querySelector(".quick-verdicts").hidden = player.status !== "UNKNOWN";
+  renderFace(shield, player);
+
+  const summary = [player.id, player.name, player.profession, player.ovr, player.tier, player.status]
+    .filter(Boolean).join(" · ");
+  shield.title = player.clue ? summary + " — " + player.clue.text : summary;
+  shield.setAttribute("aria-label", shield.title);
+  if (previous === "UNKNOWN" && player.status !== "UNKNOWN") {
+    slot.classList.add("flipping");
+    setTimeout(() => slot.classList.remove("flipping"), 870);
   }
 }
