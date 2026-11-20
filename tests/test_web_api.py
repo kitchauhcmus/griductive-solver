@@ -23,9 +23,11 @@ class RequestStream:
         self.output.extend(data)
 
 
-def exchange(match, method, path, body=b""):
+def exchange(match, method, path, body=b"", *, session=None):
+    session_header = f"X-Griductive-Session: {session}\r\n" if session is not None else ""
     headers = (f"{method} {path} HTTP/1.0\r\nHost: localhost\r\n"
-               f"Content-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n")
+               f"Content-Type: application/json\r\nContent-Length: {len(body)}\r\n"
+               f"{session_header}\r\n")
     stream = RequestStream(headers.encode("ascii") + body)
     Handler(stream, ("127.0.0.1", 12345), SimpleNamespace(match=match))
     response = HTTPResponse(RequestStream(bytes(stream.output)), method=method)
@@ -78,6 +80,19 @@ def test_manual_and_solver_routes(match):
     assert api(match, "solve")["state"]["solved"] == 16
     assert api(match, "uniqueness")["unique"]
     assert api(match, "restart")["state"]["solved"] == 1
+
+
+def test_stale_session_cannot_play_a_move(match):
+    state = json.loads(exchange(match, "GET", "/api/state").read())
+    stale = exchange(match, "POST", "/api/step", session="previous-session")
+    assert stale.status == 409
+    assert json.loads(exchange(match, "GET", "/api/state").read()) == state
+
+    accepted = exchange(match, "POST", "/api/step", session=state["session"])
+    assert accepted.status == 200
+    updated = json.loads(accepted.read())["state"]
+    assert updated["solved"] == state["solved"] + 1
+    assert updated["session"] == state["session"]
 
 
 @pytest.mark.parametrize(("case", "expected"), [

@@ -1,7 +1,9 @@
 """Serve one local match. Only explicitly listed files and actions are routable."""
+import errno
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import sys
 from urllib.parse import unquote, urlsplit
 
 from ..roster import BY_SLUG
@@ -9,6 +11,7 @@ from .game import Match, ROOT
 from .portraits import MIME, portrait_index
 
 STATIC = Path(__file__).parent / "static"
+DEFAULT_PORT = 8765
 FILES = {
     "/": (STATIC / "index.html", "text/html; charset=utf-8"),
     "/static/app.css": (STATIC / "app.css", "text/css; charset=utf-8"),
@@ -78,8 +81,12 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(size) or b"{}")
             if not isinstance(data, dict):
                 raise ValueError("Expected a JSON object")
-            with self.server.match.lock:
-                result = self.server.match.action(action.rsplit("/", 1)[1], data)
+            match = self.server.match
+            session = self.headers.get("X-Griductive-Session")
+            if session is not None and session != match.session:
+                return self.json({"error": "The game server has restarted."}, 409)
+            with match.lock:
+                result = match.action(action.rsplit("/", 1)[1], data)
             self.json(result)
         except (KeyError, ValueError, TypeError) as exc:
             self.json({"error": str(exc)}, 400)
@@ -89,8 +96,18 @@ class Handler(BaseHTTPRequestHandler):
             super().log_message(fmt, *args)
 
 
-def make_server(initial, *, portraits=None):
+class LocalServer(ThreadingHTTPServer):
+    # Windows SO_REUSEADDR can let two live servers bind the same address.
+    allow_reuse_address = sys.platform != "win32"
+
+
+def make_server(initial, *, portraits=None, port=DEFAULT_PORT):
     match = Match(Path(initial), **({"portraits": portraits} if portraits is not None else {}))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    try:
+        server = LocalServer(("127.0.0.1", port), Handler)
+    except OSError as exc:
+        if not port or (exc.errno != errno.EADDRINUSE and getattr(exc, "winerror", None) != 10048):
+            raise
+        server = LocalServer(("127.0.0.1", 0), Handler)
     server.match = match
     return server

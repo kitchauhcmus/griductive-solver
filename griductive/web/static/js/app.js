@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 const grid = $("grid");
 const nodes = new Map();
 let match, selected, tab="squad", hintCells=[], busy=false, running=false, timer, noticeTimer;
+let needsSync=false;
 let sound=false, audio;
 const metricLabels = {solved:"Solved",primary:"Primary vars",aux:"Aux vars",clauses:"CNF clauses",
   calls:"SAT calls",decisions:"Decisions",backtracks:"Backtracks",runtime_ms:"Runtime · ms"};
@@ -17,10 +18,24 @@ const msg = {
   ACCEPTED:"Verdict proved. The player’s clue is now public."
 };
 
+class ConnectionError extends Error {}
+class SessionChangedError extends Error {}
+
 async function request(path, payload) {
-  const options = payload === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)};
-  const response=await fetch("/api/"+path,options);
-  const data=await response.json();
+  const options = {cache:"no-store"};
+  if(payload !== undefined){
+    options.method="POST";
+    options.headers={"Content-Type":"application/json","X-Griductive-Session":match.session};
+    options.body=JSON.stringify(payload);
+  }
+  let response, data;
+  try{
+    response=await fetch("/api/"+path,options);
+    data=await response.json();
+  } catch {
+    throw new ConnectionError("Start the game with python main.py and use the URL printed in the terminal.");
+  }
+  if(response.status===409) throw new SessionChangedError(data.error);
   if(!response.ok) throw Error(data.error || "Request failed");
   return data;
 }
@@ -43,7 +58,7 @@ function notice(result, message){
   box.dataset.result=result;
   box.textContent=[result.replaceAll("_"," "),message || msg[result]].filter(Boolean).join(" · ");
   box.hidden=false;
-  noticeTimer=setTimeout(()=>box.hidden=true,4600);
+  if(result!=="DISCONNECTED") noticeTimer=setTimeout(()=>box.hidden=true,4600);
 }
 function renderBoard(fresh) {
   const size=match.size;
@@ -175,6 +190,19 @@ function stopAuto(){
   running=false;clearTimeout(timer);$("auto").querySelector("span").textContent="Auto solve";
   $("auto").querySelector("use").setAttribute("href","#i-play");
 }
+async function refreshMatch(){
+  const [catalog,state]=await Promise.all([request("puzzles"),request("state")]);
+  const groups=new Map();
+  for(const puzzle of catalog){
+    const label=puzzle.diagnostic?"Diagnostic puzzles":puzzle.size+" × "+puzzle.size;
+    if(!groups.has(label)){const group=el("optgroup");group.label=label;groups.set(label,group);}
+    groups.get(label).append(new Option(puzzle.title,puzzle.id));
+  }
+  $("cases").replaceChildren(...groups.values());
+  render(state,true);
+  fitPitch();
+  needsSync=false;
+}
 async function perform(action,payload={},auto=false){
   if(busy) return;
   if(!auto) stopAuto();
@@ -182,6 +210,12 @@ async function perform(action,payload={},auto=false){
   const controls=["cases","step","instant","restart","hint","unique"];
   controls.forEach(id=>$(id).disabled=true);
   try{
+    if(!match || needsSync){
+      await refreshMatch();
+      stopAuto();
+      notice("CONNECTED","Board refreshed. Choose an action to continue.");
+      return;
+    }
     const result=await request(action,payload);
     hintCells=[];
     if(result.cell) selected=result.cell;
@@ -200,7 +234,20 @@ async function perform(action,payload={},auto=false){
       signal(rejected?165:500);
     } else {$("alert").hidden=true;}
     return result;
-  } catch(error){notice("ERROR",error.message);stopAuto();}
+  } catch(error){
+    stopAuto();
+    if(match) $("cases").value=match.puzzle;
+    if(error instanceof SessionChangedError){
+      needsSync=true;
+      try{
+        await refreshMatch();
+        notice("CONNECTED","Game restarted. Choose an action on the refreshed board.");
+      } catch(refreshError){notice("DISCONNECTED",refreshError.message);}
+    } else if(error instanceof ConnectionError){
+      needsSync=true;
+      notice("DISCONNECTED",error.message);
+    } else {notice("ERROR",error.message);}
+  }
   finally {busy=false;controls.forEach(id=>$(id).disabled=false);}
 }
 async function autoTick(){
@@ -230,7 +277,7 @@ $("sound").onclick=()=>{
 $("close-review").onclick=()=>$("review").close();
 document.querySelectorAll("[data-tab]").forEach(button=>button.onclick=()=>{
   tab=button.dataset.tab;document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-selected",b===button));
-  sheet();$("sheet-body").scrollTop=0;
+  if(match){sheet();$("sheet-body").scrollTop=0;}
 });
 new ResizeObserver(()=>requestAnimationFrame(highlight)).observe($("pitch"));
 function fitPitch(){
@@ -239,14 +286,7 @@ function fitPitch(){
   $("pitch").style.setProperty("--pitch-height",space+"px");
 }
 window.addEventListener("resize",fitPitch);
-try{
-  const [catalog,state]=await Promise.all([request("puzzles"),request("state")]);
-  const groups=new Map();
-  for(const puzzle of catalog){
-    const label=puzzle.diagnostic?"Diagnostic puzzles":puzzle.size+" × "+puzzle.size;
-    if(!groups.has(label)){const group=el("optgroup");group.label=label;groups.set(label,group);$("cases").append(group);}
-    groups.get(label).append(new Option(puzzle.title,puzzle.id));
-  }
-  render(state);
-  fitPitch();
-} catch(error){notice("ERROR",error.message);}
+busy=true;
+try{await refreshMatch();}
+catch(error){notice("DISCONNECTED",error.message);}
+finally{busy=false;}

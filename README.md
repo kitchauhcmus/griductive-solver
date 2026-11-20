@@ -42,8 +42,11 @@ python main.py
 ```
 
 Python 3.11 or newer is recommended. The game uses the standard library and
-works offline. The launcher prints a free loopback URL and opens it in the
-default browser. Ctrl+C stops the server. For a specific case, run
+works offline. The launcher opens `http://127.0.0.1:8765/` in the default
+browser, or prints and opens another loopback URL if that port is occupied.
+Keep the Python terminal running while you play. If a tab disconnects, restart
+`python main.py` and use the URL printed in that terminal. Ctrl+C stops the
+server. For a specific case, run
 `python main.py puzzles/5x5_deep_inference.json`.
 
 Click a card or a roster row. The inspection panel shows its public metadata

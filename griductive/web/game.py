@@ -2,6 +2,7 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 
 from ..clues import clue_review_cells, describe_clue
 from ..engine import GameController, GameEngine
@@ -33,6 +34,7 @@ def public_clue(clue, state):
 class Match:
     def __init__(self, initial: Path, portraits: Path = ROOT / "assets/players"):
         self.lock = RLock()
+        self.session = uuid4().hex
         self.portraits = portraits
         self.paths = {p.relative_to(PUZZLES).as_posix(): p for p in sorted(PUZZLES.rglob("*.json"))}
         initial = initial.resolve()
@@ -74,6 +76,7 @@ class Match:
                           "portrait": url})
         formula = game.agent.build_kb(state)
         return {
+            "session": self.session,
             "puzzle": self.current, "title": state.title, "size": state.size, "cards": cards,
             "solved": len(state.proved), "total": len(cards),
             "trace": [asdict(step) for step in game.trace],
