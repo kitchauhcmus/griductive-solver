@@ -1,10 +1,13 @@
 # Image credits
 
 The portraits are used as character art in a fictional deduction game. The verdicts are fictional game states.
-Each distributed JPG retains the license listed below. Player photos were cropped, resized and color-adjusted. Where a portrait has a blurred backdrop, it is derived from the same photo. The stadium photo was resized, color-adjusted and lightly blurred.
+Each bundled image retains the license listed below. Player photos may be cropped, resized or color-adjusted for the cards. Where a portrait has a blurred backdrop, it is derived from the same photo. The stadium photo was resized, color-adjusted and lightly blurred.
 
 | Bundled asset | Photographer | Source | License |
 | --- | --- | --- | --- |
+| `players/ederson.png` | Kirill Venediktov | [Wikimedia Commons, cropped version](https://commons.wikimedia.org/wiki/File:Ederson_%28cropped%29.png) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `players/iniesta.jpg` | Mahdi Zare / Fars Media Corporation | [Wikimedia Commons, resized preview](https://commons.wikimedia.org/wiki/File:Andr%C3%A9s_Iniesta_2018.jpg) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| `players/odegaard.jpg` | Bryan Berlin / WikiPortraits | [Wikimedia Commons, resized preview](https://commons.wikimedia.org/wiki/File:Martin_Odegaard_France_v_Norway_26_June_26-014.jpg) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
 | `players/messi.jpg` | Kirill Venediktov | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Lionel_Messi_20180626_%283x4_cropped%29.jpg) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 | `players/ronaldo.jpg` | Anton Zaitsev | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ronaldo_in_2018_%28cropped%29.jpg) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 | `players/neymar.jpg` | Balkan Photos | [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Neymar_2018_%28cropped%29.jpg) | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) |

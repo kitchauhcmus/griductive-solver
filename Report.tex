@@ -1,0 +1,906 @@
+% !TeX program = xelatex
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\setmainfont{lmroman10-regular.otf}[
+  BoldFont=lmroman10-bold.otf,
+  ItalicFont=lmroman10-italic.otf,
+  BoldItalicFont=lmroman10-bolditalic.otf
+]
+\usepackage[margin=25mm]{geometry}
+\usepackage{amsmath,array}
+\usepackage[hidelinks,bookmarksnumbered]{hyperref}
+\hypersetup{
+  pdftitle={Báo cáo đồ án 2: Griductive Solver},
+  pdfsubject={CSC14003 Nhập môn Trí tuệ nhân tạo},
+  pdfauthor={Võ Duy Phát; Phan Phước Quang Minh; Bùi Trung Hậu; Danh Thiện Nhân; Nguyễn Châu Tuấn Kiệt}
+}
+\renewcommand{\contentsname}{Mục lục}
+\renewcommand{\refname}{Tài liệu tham khảo}
+\setlength{\parskip}{4pt plus 1pt}
+\setlength{\emergencystretch}{2em}
+\setcounter{tocdepth}{1}
+\hypersetup{bookmarksdepth=2}
+\renewcommand{\arraystretch}{1.18}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\studentengine}{Võ Duy Phát}
+\newcommand{\studentagent}{Phan Phước Quang Minh}
+\newcommand{\studentcnf}{Bùi Trung Hậu}
+\newcommand{\studentdpll}{Danh Thiện Nhân}
+\newcommand{\studentgui}{Nguyễn Châu Tuấn Kiệt}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+\begin{titlepage}
+\centering
+{\large Đại học Quốc gia Thành phố Hồ Chí Minh\par}
+{\large\bfseries Trường Đại học Khoa học Tự nhiên\par}
+{\large Khoa Công nghệ Thông tin\par}
+\vfill
+{\large CSC14003 Nhập môn Trí tuệ nhân tạo\par}
+\vspace{8mm}
+{\Large Báo cáo đồ án 2\par}
+\vspace{5mm}
+{\Huge\bfseries Griductive Solver\par}
+\vspace{3mm}
+{\LARGE Suy luận trên sân bóng\par}
+\vspace{7mm}
+\rule{70mm}{0.4pt}\par
+\vspace{9mm}
+{\large\bfseries Thành viên nhóm\par}
+\vspace{4mm}
+\begin{tabular}{@{}ll@{}}
+\textbf{Họ và tên} & \textbf{MSSV}\\ \hline
+\studentengine & 25122013\\
+\studentagent & 25122029\\
+\studentcnf & 25122006\\
+\studentdpll & 25122032\\
+\studentgui & 25122026
+\end{tabular}
+\vfill
+Thành phố Hồ Chí Minh, tháng 11 năm 2026
+\end{titlepage}
+\hypersetup{pageanchor=true}
+
+\noindent\textbf{Tóm tắt.}
+Griductive là trò chơi suy luận trong đó mỗi phán quyết phải được suy ra từ
+những manh mối đã công khai. Phiên bản chủ đề bóng đá biểu diễn mỗi cầu thủ
+bằng một biến Boolean, tự động chuyển manh mối sang dạng chuẩn hội (CNF)
+và chứng minh phán quyết bằng bộ giải DPLL do nhóm cài đặt. Giao diện trình
+duyệt hỗ trợ chơi thủ công, gợi ý và giải tự động. Cả năm bàn trong tập
+thực nghiệm cố định, từ $3\times3$ đến $5\times5$, đều giải được trong cả năm
+lần đo và trong thời hạn mỗi lần chạy. Báo cáo dẫn xuất CNF cho hai manh mối
+trong các bàn đi kèm, dựng lại các bước chứng minh từ nhật ký suy luận và
+ghi nhận kết quả cùng các điểm còn thiếu khi đối chiếu với đề đồ án~\cite{spec}.
+\begingroup
+\small
+\setlength{\parskip}{0pt}
+\tableofcontents
+\endgroup
+\clearpage
+
+\section{Kế hoạch và phân công công việc}
+\subsection{Trách nhiệm của từng thành viên}
+
+Công việc được phân chia theo mô-đun. Việc tích hợp bắt đầu khi mỗi mô-đun
+có giao diện lập trình có thể kiểm thử. Tỷ lệ hoàn thành đang chờ nhóm xác
+nhận. Theo đề, điểm cá nhân được tính theo công thức
+\[
+  s_{\text{cá nhân}} =
+  s_{\text{nhóm}}\times \frac{\text{phần trăm hoàn thành}}{100}.
+\]
+Ví dụ nhóm đạt $9{,}0$ điểm và thành viên hoàn thành $90\%$ thì thành viên
+đó đạt $8{,}1$ điểm.
+
+\begin{center}
+\small
+\begin{tabular}{@{}L{34mm}L{17mm}L{76mm}L{20mm}@{}}
+\textbf{Thành viên} & \textbf{MSSV} & \textbf{Trách nhiệm và sản phẩm bàn giao} &
+\textbf{Tỷ lệ hoàn thành}\\ \hline
+\studentengine & 25122013 &
+\textbf{Game Engine và dữ liệu bàn chơi.} Đọc bàn từ JSON, quản lý thẻ
+úp và thẻ đã lật, giữ kín lời giải, cung cấp trạng thái công khai cho tác tử
+và chuẩn bị các bàn $3\times3$ và $4\times4$ để thực nghiệm. & Chờ xác nhận\\[4pt]
+\studentagent & 25122029 &
+\textbf{Tác tử suy luận và tích hợp.} Dùng DPLL để phân loại
+\code{CRIMINAL}, \code{INNOCENT} và \code{UNKNOWN}. Tích hợp kiểm tra phán quyết,
+mở manh mối, ghi nhật ký suy luận và kiểm tra nghiệm duy nhất. & Chờ xác nhận\\[4pt]
+\studentcnf & 25122006 &
+\textbf{Biểu diễn manh mối và mã hóa CNF.} Ánh xạ cầu thủ sang biến,
+mã hóa sáu mẫu bắt buộc và các phần mở rộng, cài đặt hàm đánh giá ngữ nghĩa
+trực tiếp để đối chiếu với CNF. & Chờ xác nhận\\[4pt]
+\studentdpll & 25122032 &
+\textbf{Bộ giải DPLL.} Cài đặt lan truyền mệnh đề đơn vị, phát hiện
+mâu thuẫn, phân nhánh và quay lui. Trả về \code{SAT} hoặc \code{UNSAT} kèm
+số liệu và kiểm thử cả hai kết quả. & Chờ xác nhận\\[4pt]
+\studentgui & 25122026 &
+\textbf{Giao diện trình duyệt và video minh họa.} Hiển thị bàn chơi, xử lý
+chọn cầu thủ và gửi phán quyết, tô sáng các ô liên quan, tích hợp Load,
+Restart, Hint và Auto Solve. Chuẩn bị phần minh họa chơi tay và giải tự động.
+& Chờ xác nhận\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Kế hoạch triển khai}
+\begin{enumerate}
+  \item \textbf{Mô hình trò chơi.} Phát xây dựng cấu trúc dữ liệu bàn chơi và
+    giao diện truy cập trạng thái công khai. Hậu dựa vào đó để xác định ngữ nghĩa
+    manh mối và các vùng.
+  \item \textbf{Cài đặt phần logic.} Hậu kiểm tra CNF bằng bộ đánh giá trực tiếp.
+    Nhân kiểm tra mô hình SAT đầy đủ, giả định dẫn đến UNSAT và các nhánh thất
+    bại trước khi tích hợp.
+  \item \textbf{Tích hợp chức năng chơi.} Minh nối bước chứng minh với thao tác
+    lật thẻ và kiểm tra các trường trong nhật ký. Kiệt tích hợp API công khai
+    với thao tác chọn thẻ, phán quyết, tô sáng và giải tự động.
+  \item \textbf{Kiểm tra và bàn giao.} Nhóm kiểm định các bàn, chạy tập
+    thực nghiệm cố định, hoàn thiện báo cáo và chuẩn bị video có lời dẫn
+    hoặc phụ đề.
+\end{enumerate}
+
+\clearpage
+\section{Mô hình trò chơi và kiểm định}
+\subsection{Trạng thái và chuyển trạng thái}
+
+Mỗi bàn có tiêu đề, kích thước lưới, trạng thái ẩn và một manh mối cho mỗi
+thẻ, cùng tập các ô được mở ban đầu. Ô $i$ có biến Boolean chính $C_i$,
+nhận giá trị đúng khi cầu thủ là tội phạm và sai khi cầu thủ vô tội.
+Mã ô được sắp theo từng hàng từ trên xuống. Khi chơi lại, Game Engine
+mở các ô ban đầu đã cấu hình. Tác tử nhận dữ liệu nhận diện thẻ, trạng thái
+đã chứng minh và manh mối đã mở qua \code{PublicGameState}. Game Engine
+giữ kín lời giải và manh mối của các thẻ úp. Bộ kiểm định kiểm tra thứ tự
+mã ô theo hàng và thứ tự chữ cái của tên hiển thị. Chẳng hạn C2 là cột C,
+hàng 2. Mỗi manh mối là phát biểu đúng bất kể trạng thái của người sở hữu
+thẻ. Tên và vị trí thi đấu dùng để nhận diện cầu thủ trên giao diện.
+Bộ mã hóa chỉ dùng vị trí thi đấu để phân nhóm khi manh mối yêu cầu.
+
+Gọi $Q_t$ là tập manh mối đã mở và $P_t$ là tập phán quyết đã chứng minh
+ở bước $t$. Cơ sở tri thức công khai được biểu diễn bằng công thức
+\[
+  KB_t =
+  \bigwedge_{q\in Q_t}\operatorname{CNF}(q)
+  \;\land\!
+  \bigwedge_{(i,s)\in P_t}\operatorname{literal}(C_i,s).
+\]
+Khi chứng minh thành công, bộ điều phối mở thẻ được chọn rồi thêm trạng
+thái đã chứng minh và manh mối mới vào trạng thái công khai kế tiếp.
+Phán quyết chưa chứng minh được hoặc trái với kết luận suy ra giữ nguyên
+trạng thái bàn. Mục tiêu là chứng minh trạng thái của mọi thẻ. Bộ giải dừng
+khi không thể chứng minh thêm phán quyết nào.
+
+\paragraph{Ranh giới giữa các mô-đun.}
+\code{GameEngine} nắm toàn bộ dữ liệu \code{Puzzle}. Bộ điều phối đưa bản
+chụp trạng thái công khai cho phần suy luận và chỉ yêu cầu mở thẻ sau khi có
+kết luận bắt buộc. Engine đối chiếu kết luận với nhãn có sẵn để kiểm tra
+tính nhất quán lúc lật thẻ. Khi chơi, trình duyệt nhận thông tin nhận diện
+của thẻ chưa giải với trường manh mối là \code{null}. Lệnh kiểm tra nghiệm
+duy nhất nhận toàn bộ manh mối qua luồng kiểm định riêng.
+
+\subsection{Xác định các ô trong vùng}
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.04}
+\begin{tabular}{@{}L{49mm}L{100mm}@{}}
+\textbf{Vùng} & \textbf{Các ô được chọn}\\ \hline
+\code{ROW}, \code{COLUMN} & Tất cả các ô thuộc hàng hoặc cột được chỉ định.\\
+\code{NEIGHBORS} & Các ô chung cạnh hoặc chung góc, trừ ô trung tâm.\\
+\code{EXPLICIT}, \code{WHOLE} & Các mã ô được liệt kê hoặc toàn bộ bàn. \code{WHOLE_GRID} là tên tương đương với \code{WHOLE}.\\
+\code{CORNERS}, \code{EDGES} & Bốn góc hoặc toàn bộ đường biên, kể cả các góc.\\
+\code{BETWEEN} & Các ô nằm giữa hai đầu mút trên cùng hàng, cột hoặc đường chéo.\\
+\code{COMMON_NEIGHBORS} & Giao của hai vùng lân cận tám hướng, bỏ hai đầu mút.\\
+\code{DIRECTIONAL} & Một ô kề theo hướng ngang hoặc dọc được chỉ định.\\
+\code{PROFESSION} & Các ô có nghề nghiệp hoặc vị trí thi đấu được chỉ định, so khớp không phân biệt hoa thường.\\
+\code{INTERSECTION}, \code{UNION} & Giao hoặc hợp của các vùng thành phần.\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Kiểm định bàn chơi}
+
+Bộ kiểm định xác nhận $n^2$ ô có mã duy nhất, khóa lời giải và manh mối
+khớp với các ô, có ít nhất một ô mở sẵn và các vùng cùng trường dữ liệu
+đều hợp lệ. Mỗi manh mối phải đúng với lời giải ẩn. Bộ kiểm định kiểm tra
+khả năng thỏa và nghiệm duy nhất trên toàn bộ manh mối, rồi giải từ các
+ô mở sẵn để xác nhận có thể hoàn thành bàn mà không cần đoán.
+
+\clearpage
+\subsection{Suy luận từng bước trên bàn Counting Trail}
+
+Bàn Counting Trail $3\times3$ bắt đầu với A1 vô tội. Manh mối của A1 là
+\code{AT_MOST(0)} trên $\{\mathrm{B1}\}$. Vì vậy, $KB_0$ chứa phán quyết
+ban đầu $\neg C_{\mathrm{A1}}$ và ràng buộc $C_{\mathrm{B1}}$ phải sai.
+Ba bước được chấp nhận đầu tiên cho thấy cơ sở tri thức công khai tăng dần.
+Hai cột kết quả SAT lần lượt tương ứng với giả định ô đang xét là tội phạm
+và vô tội.
+
+\begin{center}
+\small
+\begin{tabular}{@{}c L{33mm} c c L{33mm} L{23mm}@{}}
+\textbf{Bước} & \textbf{Ô có manh mối đã mở} & \textbf{Tội phạm} &
+\textbf{Vô tội} & \textbf{Phán quyết được chấp nhận} & \textbf{Manh mối mới}\\ \hline
+1 & A1 & UNSAT & SAT & B1 vô tội & \code{clue_B1}\\
+2 & A1, B1 & SAT & UNSAT & C1 là tội phạm & \code{clue_C1}\\
+3 & A1, B1, C1 & SAT & UNSAT & A2 là tội phạm & \code{clue_A2}\\ \hline
+\end{tabular}
+\end{center}
+
+\begin{enumerate}
+  \item Giả sử B1 là tội phạm. Giả định này mâu thuẫn với giới hạn không có
+    tội phạm trong $\{\mathrm{B1}\}$. Giả định B1 vô tội vẫn thỏa được,
+    nên thẻ B1 được mở và công bố \code{EXACTLY(1)} trên hàng 1.
+  \item A1 và B1 đều đã được chứng minh vô tội. Phương trình theo hàng
+    $C_{\mathrm{A1}}+C_{\mathrm{B1}}+C_{\mathrm{C1}}=1$ rút gọn thành
+    $C_{\mathrm{C1}}=1$. Việc mở C1 thêm \code{AT_LEAST(1)}
+    trên $\{\mathrm{A2}\}$.
+  \item Ràng buộc trên một ô buộc A2 là tội phạm. Manh mối A2 cho biết
+    \code{EXACTLY(1)} trên $\{\mathrm{A2},\mathrm{B2}\}$. Nước đi bắt buộc
+    kế tiếp là B2 vô tội. Mục~\ref{sec:count-derivation} dẫn xuất các mệnh đề
+    mà chương trình sinh ra cho manh mối này.
+\end{enumerate}
+
+\paragraph{Kiểm tra độc lập.}
+Liệt kê $2^9$ phép gán cho các biến chính và đánh giá trực tiếp manh mối
+cho thấy có 128 phép gán phù hợp ở trạng thái ban đầu, rồi còn 64, 32
+và 16 sau ba lần mở thẻ đầu tiên. Mỗi phán quyết được chấp nhận đều đúng
+trong mọi phép gán còn phù hợp vào thời điểm thực hiện. Cách đối chiếu này
+được áp dụng cho cả 46 lần mở thẻ trên hai bàn $3\times3$ và hai bàn $4\times4$.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\textbf{Bàn chơi} & \textbf{Ban đầu} & \textbf{Sau 3 bước} &
+\textbf{Khi xong} & \textbf{Lượt mở đã kiểm tra}\\ \hline
+Binary Foundations & 128 & 16 & 1 & 8\\
+Counting Trail & 128 & 16 & 1 & 8\\
+Rookie Training & 8,192 & 1,024 & 1 & 15\\
+Intersecting Testimony & 8,192 & 256 & 1 & 15\\ \hline
+\end{tabular}
+\end{center}
+
+\paragraph{Intersecting Testimony.}
+Trong \nolinkurl{4x4_medium_links.json}, thẻ mở sẵn A1 có manh mối
+\code{INCLUDED_COUNT}. Đúng hai ô lân cận A4 là vô tội và A3 là một
+trong hai ô đó. Việc mở A3 công bố manh mối \code{OVERLAP_COUNT} về các
+ô vô tội lân cận D3. Hai bước bắt buộc tiếp theo là D2 và C3 đều vô tội.
+Số phép gán còn phù hợp sau ba bước lần lượt là 768, 256 và 256. Lần
+mở thứ ba thêm một manh mối vốn đã suy ra được từ trạng thái công khai.
+
+
+\clearpage
+\section{Ngữ nghĩa manh mối và mã hóa CNF}
+\subsection{Các loại manh mối được hỗ trợ}
+
+Với manh mối đếm trên vùng $R$, dùng $x_i=C_i$ để đếm thẻ tội phạm
+hoặc $x_i=\neg C_i$ để đếm thẻ vô tội. Kết quả là số literal $x_i$ nhận
+giá trị đúng trong $R$. Hàm đánh giá trực tiếp trong \code{griductive/clues.py}
+cài đặt ngữ nghĩa này độc lập với bộ mã hóa.
+
+\begin{center}
+\small
+\begin{tabular}{@{}L{51mm}L{98mm}@{}}
+\textbf{Manh mối bắt buộc} & \textbf{Điều kiện}\\ \hline
+\code{FACT} & Người được chỉ định có đúng trạng thái đã nêu.\\
+\code{SAME} & Hai người có cùng trạng thái.\\
+\code{DIFFERENT} & Hai người có trạng thái khác nhau.\\
+\code{EXACTLY} & Có đúng $k$ ô mang trạng thái cần đếm.\\
+\code{AT_LEAST} & Có ít nhất $k$ ô mang trạng thái cần đếm.\\
+\code{AT_MOST} & Có nhiều nhất $k$ ô mang trạng thái cần đếm.\\ \hline
+\textbf{Manh mối mở rộng} & \textbf{Điều kiện}\\ \hline
+\code{PARITY} & Số ô mang trạng thái cần đếm là chẵn hoặc lẻ theo yêu cầu.\\
+\code{COUNT_COMPARE} & So sánh hai số đếm bằng $=$, $\ne$, $<$, $\le$, $>$ hoặc $\ge$. Ô chung được tính ở cả hai vế.\\
+\code{ALL_OF} & Mọi manh mối thành phần đều đúng.\\
+\code{INCLUDED_COUNT} & Có đúng $k$ ô mang trạng thái cần đếm, bao gồm ô được chỉ định.\\
+\code{OVERLAP_COUNT} & Vùng tổng và một tập con được chỉ định có số đếm chính xác riêng.\\
+\code{CONNECTED} & Các ô mang trạng thái cần đếm liên thông theo cạnh. Tập rỗng và tập một ô đều thỏa điều kiện.\\
+\code{CONNECTED_COUNT} & Có đúng $k$ ô mang trạng thái cần đếm và các ô đó liên thông theo cạnh.\\
+\code{GROUP_MOST} & Hàng, cột hoặc nhóm nghề được chọn có số đếm lớn hơn mọi nhóm cùng loại.\\
+\code{GROUP_ONLY} & Nhóm được chọn có số đếm $k$ và mọi nhóm cùng loại đều có số đếm khác $k$.\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Ánh xạ biến và các mệnh đề cơ bản}
+
+Bộ mã hóa gán mã số nguyên cho biến của từng ô theo thứ tự hàng, rồi
+cấp thêm mã cho các biến phụ khi sinh ràng buộc. Literal dương biểu diễn
+biến, literal âm biểu diễn phủ định của cùng biến. \code{FACT} sinh một
+mệnh đề đơn vị. Dạng mã hóa của \code{SAME} và \code{DIFFERENT} là
+\begin{align*}
+  C_a\leftrightarrow C_b
+    &\equiv (\neg C_a\lor C_b)\land(C_a\lor\neg C_b),\\
+  C_a\oplus C_b
+    &\equiv (C_a\lor C_b)\land(\neg C_a\lor\neg C_b).
+\end{align*}
+
+Trên bàn Binary Foundations, manh mối lật từ B1 cho biết B1 và C1 có trạng
+thái khác nhau (\code{DIFFERENT}). Đặt $x=C_{\mathrm{B1}}$ và
+$y=C_{\mathrm{C1}}$. Manh mối cho phép $(x,y)=(0,1)$ và $(1,0)$.
+Mệnh đề $x\lor y$ loại $(0,0)$, còn $\neg x\lor\neg y$ loại $(1,1)$.
+Hội của hai mệnh đề chỉ chấp nhận hai cặp còn lại. Vì mã theo hàng của
+B1 và C1 là 2 và 3, bộ mã hóa sinh \code{(2, 3)} và \code{(-2, -3)}.
+Khi manh mối của B1 được công khai, B1 đã được chứng minh là tội phạm.
+Mệnh đề thứ nhất được thỏa và mệnh đề thứ hai rút gọn thành mệnh đề đơn
+vị $\neg C_{\mathrm{C1}}$.
+
+\clearpage
+\subsection{Dẫn xuất CNF cho manh mối đếm}
+\label{sec:count-derivation}
+
+\paragraph{Bộ đếm số lượng.}
+Với vùng có $m$ ô, biến phụ $S_{j,c}$ cho biết có đúng $c$ literal đúng
+trong $j$ literal đầu tiên. Bước khởi tạo đặt $S_{0,0}$ đúng và các trạng
+thái khác ở lớp 0 sai. Mỗi lớp sau đó có đúng một trạng thái được kích
+hoạt. Bộ mã hóa dùng một phép tuyển và các mệnh đề loại trừ từng cặp
+để bảo đảm điều này. Với mỗi chuyển trạng thái hợp lệ,
+\begin{align*}
+  S_{j-1,c}\land\neg x_j &\implies S_{j,c},\\
+  S_{j-1,c}\land x_j &\implies S_{j,c+1}.
+\end{align*}
+Lớp cuối cho phép số đếm đúng bằng $k$, từ $0$ đến $k$, hoặc từ $k$ đến $m$,
+tương ứng với ba loại manh mối đếm. Bộ đếm dùng $O(m^2)$ biến phụ và
+$O(m^3)$ mệnh đề. \code{INCLUDED_COUNT} thêm một mệnh đề đơn vị vào ràng
+buộc đếm chính xác. \code{OVERLAP_COUNT} kết hợp hai ràng buộc đếm chính xác.
+
+\paragraph{Ví dụ từ bàn Counting Trail.}
+Manh mối \code{clue_A2} yêu cầu có đúng một tội phạm trong
+$\{\mathrm{A2},\mathrm{B2}\}$. Đặt $x=C_{\mathrm{A2}}$ và $y=C_{\mathrm{B2}}$,
+có mã số nguyên là 4 và 5. Khi mã hóa riêng manh mối này, bộ mã hóa cấp
+mã cho các trạng thái như sau.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\textbf{Phần đã xét} & \textbf{Đếm 0} & \textbf{Đếm 1} & \textbf{Đếm 2}\\ \hline
+Chưa xét ô nào & 10 & 11 & 12\\
+Sau khi xét A2 & 13 & 14 & 15\\
+Sau khi xét B2 & 16 & 17 & 18\\ \hline
+\end{tabular}
+\end{center}
+
+Các mệnh đề đơn vị \code{(10)}, \code{(-11)} và \code{(-12)} đặt số đếm
+ban đầu bằng 0. Ở lớp sau khi xét A2, mệnh đề \code{(13, 14, 15)} bảo đảm
+ít nhất một trạng thái đúng. Các mệnh đề \code{(-13, -14)},
+\code{(-13, -15)} và \code{(-14, -15)} bảo đảm nhiều nhất một trạng thái đúng.
+Lớp sau khi xét B2 dùng cách mã hóa tương tự. Từ trạng thái đếm 0 trước A2,
+hai luật chuyển được biến đổi thành các mệnh đề sau.
+\begin{align*}
+  S_{0,0}\land\neg x\implies S_{1,0}
+    &\equiv \neg S_{0,0}\lor x\lor S_{1,0},\\
+  S_{0,0}\land x\implies S_{1,1}
+    &\equiv \neg S_{0,0}\lor\neg x\lor S_{1,1}.
+\end{align*}
+Chúng có dạng \code{(-10, 4, 13)} và \code{(-10, -4, 14)}. Mệnh đề đơn vị
+cuối \code{(17)} buộc kết quả đúng bằng 1. Khi $x=1$, trạng thái 14 phải
+đúng. Từ đó, $y=1$ sẽ buộc trạng thái 18 đúng, mâu thuẫn với trạng thái 17,
+nên $y=0$. Tương tự, cặp $(0,1)$ cũng cho số đếm 1. Hai cặp $(0,0)$
+và $(1,1)$ cho số đếm 0 và 2 nên bị loại. Manh mối này sinh 9 biến phụ và
+24 mệnh đề gồm 3 mệnh đề khởi tạo, 8 mệnh đề bảo đảm mỗi lớp có đúng một
+trạng thái, 12 mệnh đề chuyển kể cả các điều kiện chặn tràn, và 1 mệnh đề cuối.
+
+Bằng quy nạp từ trạng thái khởi tạo và hai luật chuyển, trạng thái duy
+nhất đúng ở mỗi lớp phải phản ánh đúng số đếm của phần đã xét. Ngược lại,
+với mỗi phép gán thỏa ràng buộc, đặt đúng trạng thái tương ứng với số đếm
+ở từng lớp sẽ tạo thành một mô hình thỏa CNF. Do đó, khi cố định các biến
+chính, CNF thỏa được khi và chỉ khi manh mối đếm ban đầu đúng.
+
+\clearpage
+\subsection{Mở rộng và kiểm tra mã hóa}
+
+\paragraph{Mã hóa bằng cách loại phép gán.}
+Với manh mối chẵn lẻ và so sánh số đếm, bộ mã hóa liệt kê các phép gán
+cho những ô phân biệt thuộc các vùng liên quan. Mỗi phép gán không hợp
+lệ $A$ sinh một mệnh đề loại trừ
+\[
+  B_A = \bigvee_{i:A(C_i)=1}\neg C_i
+         \;\lor\! \bigvee_{i:A(C_i)=0} C_i .
+\]
+Mệnh đề này loại đúng phép gán $A$. Các ô trong phần giao dùng cùng một
+biến ở hai vế. So sánh giữa các nhóm cũng dùng các mệnh đề loại trừ trên
+tập ô liên quan. Trường hợp xấu nhất cần xét $2^m$ phép gán cho $m$ ô.
+Chẳng hạn, ràng buộc có số đếm chẵn trên hai ô loại $(0,1)$ và $(1,0)$.
+Biểu thức $(x\lor\neg y)\land(\neg x\lor y)$ đúng khi hai ô cùng trạng
+thái. Các manh mối so sánh số đếm trong Intersecting Testimony dùng cùng
+nguyên tắc với hai vùng, kể cả khi chúng có ô chung.
+
+\paragraph{Tính liên thông.}
+Ô được chọn đầu tiên theo thứ tự của vùng được dùng làm gốc. Mỗi lớp
+độ sâu ghi nhận các ô được chọn mà ta có thể đi đến từ gốc qua không
+quá số cạnh ngang hoặc dọc tương ứng. Ở độ sâu 0, chỉ gốc đi đến được.
+Một ô đi đến được ở lớp tiếp theo nếu đã đi đến được ở lớp trước, hoặc
+nếu ô đó thuộc tập được chọn và có ô kề đã đi đến được. Tại độ sâu
+$|R|-1$, mọi ô trong tập được chọn phải đi đến được. Giới hạn này bao
+phủ mọi đường đi đơn trong vùng. Tập rỗng không cần gốc.
+\code{CONNECTED_COUNT} kết hợp mã hóa này với ràng buộc đếm chính xác.
+\code{ALL_OF} ghép các mệnh đề từ từng manh mối thành phần.
+
+Nếu chỉ chọn hai ô nằm chéo nhau trong vùng $2\times2$, không có đường
+đi ngang hoặc dọc nối hai ô qua các ô được chọn. Mã hóa không thể làm
+cho cả hai ô đi đến được từ gốc, nên \code{CONNECTED} loại phép gán này.
+Trong khi đó, \code{NEIGHBORS} xác định vùng lân cận theo tám hướng.
+Intersecting Testimony và Deep Inference đều dùng \code{CONNECTED_COUNT},
+\code{COUNT_COMPARE} và phép đếm trên các vùng giao nhau, vượt mức tối
+thiểu hai loại mở rộng của đề.
+
+\paragraph{Kiểm chứng.}
+Các kiểm thử mã hóa liệt kê mọi phép gán đầy đủ trên bàn $2\times2$,
+rồi so sánh kết quả đánh giá trực tiếp với khả năng thỏa của CNF dưới
+cùng phép gán. Các bài kiểm thử khác kiểm tra cách xác định vùng, manh
+mối không hợp lệ và khả năng tiếp nhận các bàn ở nhiều kích thước.
+Trong mỗi lượt kiểm tra, phép gán được đưa vào dưới dạng giả định đơn vị
+trên các biến chính. Các biến phụ được tự do nhận giá trị để thỏa mã hóa.
+Cách đối chiếu này phát hiện cả trường hợp chấp nhận sai lẫn từ chối sai
+cho 15 loại manh mối trong các ca kiểm thử. Hàm đánh giá trực tiếp tính
+số đếm và tính liên thông từ giá trị các ô mà không gọi bộ mã hóa hay DPLL.
+
+\clearpage
+\section{Tác tử logic và quy trình suy luận}
+\subsection{Phân loại trạng thái của một thẻ}
+
+Với thẻ đã giải, tác tử trả ngay trạng thái đã chứng minh. Với thẻ chưa
+giải, tác tử xây dựng $KB$ công khai và kiểm tra khả năng thỏa của nó.
+Nếu $KB$ mâu thuẫn, suy luận dừng. Nếu nhất quán, tác tử kiểm tra
+$KB\land C_i$ và $KB\land\neg C_i$. Giả định đối lập không thỏa được
+là căn cứ chứng minh phán quyết. Nếu cả hai phép kiểm đều thỏa được,
+trạng thái vẫn chưa xác định.
+
+Với $KB$ nhất quán, thêm $C_i$ giữ lại đúng các mô hình trong đó $i$
+là tội phạm. Thêm $\neg C_i$ giữ lại tập mô hình còn lại. Khi một tập
+rỗng, mọi mô hình đều thỏa phán quyết đối lập. Tác tử kiểm tra tính
+nhất quán trước để trả \code{INCONSISTENT} khi $KB$ ban đầu không có
+mô hình. \code{classify_all} xây dựng một công thức cơ sở và kiểm tra
+mọi ô chưa giải theo thứ tự hàng. Sau cùng bước kiểm tra tính nhất quán,
+Hint có thể dừng ngay tại ô đầu tiên có kết luận bắt buộc.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+$KB\land C_i$ & $KB\land\neg C_i$ & \textbf{Kết quả phân loại}\\ \hline
+SAT & UNSAT & \code{CRIMINAL}\\
+UNSAT & SAT & \code{INNOCENT}\\
+SAT & SAT & \code{UNKNOWN}\\
+UNSAT & UNSAT & $KB$ mâu thuẫn\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Phán quyết, gợi ý và giải tự động}
+\begin{itemize}
+  \item Phán quyết thủ công trả \code{ACCEPTED} khi khớp với kết luận chứng
+    minh được, \code{CONTRADICTED} khi chứng minh được kết luận đối lập,
+    \code{NOT_PROVABLE} khi cả hai trạng thái đều còn khả thi, hoặc
+    \code{INCONSISTENT} khi $KB$ mâu thuẫn.
+  \item Hint xét các thẻ chưa giải theo thứ tự hàng và trả phán quyết
+    bắt buộc đầu tiên. Mỗi lượt gợi ý xây dựng và kiểm tra $KB$ một lần.
+    Nếu bỏ qua $r$ thẻ chưa xác định, cần $1+2(r+1)$ lần gọi SAT để tìm
+    một phán quyết bắt buộc.
+  \item Step thực hiện một nước đi đã được chứng minh. Auto Solve lặp
+    Step và cập nhật $KB$ công khai sau mỗi nước đi được chấp nhận cho
+    tới khi giải xong hoặc không tiến thêm được. Nhật ký ghi ô được
+    xét, phán quyết, các giả định đã kiểm tra, các manh mối đang dùng
+    và manh mối vừa mở.
+\end{itemize}
+
+Trên bàn Rookie Training, manh mối ban đầu buộc B1 vô tội. Chọn thủ công
+B1 là tội phạm sẽ bị từ chối vì trái với kết luận. Chọn B1 vô tội sẽ
+mở manh mối của ô này. Với D4 ở đầu ván, cả hai giả định đều có mô hình
+thỏa nên chưa thể chứng minh phán quyết.
+
+Mỗi phán quyết được chấp nhận là hệ quả của $KB$ công khai hiện tại.
+Phủ định của nó không có mô hình, còn lời giải do người tạo bàn cung
+cấp là một mô hình của $KB$ đối với bàn hợp lệ. Theo quy nạp, sau mỗi
+bước lời giải vẫn thỏa mọi phán quyết đã chứng minh và mọi manh mối
+đã mở. Phán quyết bị từ chối giữ nguyên thẻ và nhật ký. Vì mỗi bước
+thành công mở đúng một thẻ mới, tối đa có $N^2-s$ bước được chấp nhận
+khi bàn có $s$ ô mở sẵn. Auto Solve dừng nếu trạng thái vẫn nhất quán
+nhưng không còn thẻ nào có thể chứng minh.
+
+
+\clearpage
+\subsection{Kiểm tra nghiệm duy nhất}
+
+Phép kiểm tra riêng mã hóa toàn bộ manh mối và tìm một mô hình đầy đủ $M$.
+Mệnh đề sau chặn đúng phép gán của $M$ trên các biến chính.
+\[
+  \bigvee_{i:M(C_i)=1}\neg C_i
+  \;\lor\! \bigvee_{i:M(C_i)=0} C_i.
+\]
+Nếu lần giải thứ hai trả SAT, bàn có thêm một phép gán khác cho các biến
+chính. Nếu trả UNSAT, nghiệm là duy nhất. Mệnh đề chặn loại mọi phép gán
+biến phụ tương ứng với cùng lời giải của bàn.
+
+Ví dụ, phép gán trên các biến chính
+$(C_{\mathrm{A1}},C_{\mathrm{B1}},C_{\mathrm{C1}})=(0,1,0)$ bị chặn bởi
+$C_{\mathrm{A1}}\lor\neg C_{\mathrm{B1}}\lor C_{\mathrm{C1}}$.
+Mọi phép gán khác ít nhất một trong ba giá trị trên đều thỏa mệnh đề
+này. Khi chạy thật, phép kiểm tra dùng tất cả biến chính của bàn và
+xét toàn bộ tập manh mối. Nếu lần gọi SAT đầu tiên trả UNSAT, tập manh
+mối đầy đủ mâu thuẫn. Mô hình tìm được và manh mối ẩn được giữ ở máy chủ.
+
+\subsection{Nghiệm duy nhất và khả năng giải từng bước}
+
+Tính duy nhất của nghiệm khi có đủ manh mối là một tính chất cần kiểm
+định riêng. Chẳng hạn, nếu mỗi manh mối chỉ phát biểu trạng thái của
+chủ thẻ, toàn bộ manh mối xác định duy nhất mọi trạng thái. Tuy nhiên,
+nếu chỉ mở sẵn một thẻ, manh mối công khai chỉ cho biết trạng thái của
+chính thẻ đó. Mọi thẻ còn lại đều có thể nhận cả hai giá trị, nên không
+có nước đi đầu tiên hợp lệ. Vì vậy, bộ kiểm định vừa kiểm tra nghiệm
+duy nhất bằng mệnh đề chặn, vừa chạy vòng suy luận công khai từ các ô
+mở sẵn đã cấu hình.
+
+\subsection{Kiểm tra cách ly dữ liệu}
+
+Bài kiểm thử cách ly xóa nhãn ẩn và manh mối chưa công khai khỏi Engine
+đã nạp bàn, rồi chạy lại Hint và chức năng phân loại mọi ô chưa giải.
+Cả hai cho kết quả giống ban đầu. Thay đổi thông tin chỉ dùng để hiển
+thị cũng giữ nguyên kết quả phân loại. Kiến trúc hiện tại gọi kiểm tra
+nghiệm duy nhất qua một luồng kiểm định riêng, dù phương thức vẫn thuộc
+lớp \code{LogicAgent}. Phương thức này chủ đích nhận toàn bộ manh mối.
+Việc cách ly dựa vào các đường gọi được sử dụng khi suy luận.
+
+\clearpage
+\section{Bộ giải SAT bằng DPLL}
+\subsection{Quy trình tìm kiếm}
+
+Trong \code{griductive/dpll.py}, mỗi giả định được thêm dưới dạng mệnh
+đề đơn vị tạm thời vào bản công thức đang xét. Cơ sở tri thức gốc vẫn
+dùng được cho phép thử với giả định đối lập. DPLL sử dụng lan truyền
+mệnh đề đơn vị và phân nhánh đệ quy~\cite{dpll}. Mỗi lời gọi có ba giai đoạn.
+
+\begin{enumerate}
+  \item Quét các mệnh đề và lan truyền đến khi không phát sinh phép gán mới.
+    Một mệnh đề là đơn vị khi chưa có literal nào đúng và chỉ còn đúng một
+    literal chưa được gán.
+  \item Trả UNSAT cho nhánh nếu có mệnh đề mà mọi literal đều đã được gán sai.
+    Nếu mọi mệnh đề đã thỏa, gán sai cho các biến còn lại để tạo mô hình đầy
+    đủ rồi trả SAT.
+  \item Nếu chưa kết luận được, chọn mã biến nhỏ nhất chưa được gán và thử
+    lần lượt sai, đúng bằng đệ quy. Mỗi nhánh con thất bại được tính là một
+    lần quay lui. Nếu cả hai nhánh con đều thất bại, trả UNSAT.
+\end{enumerate}
+
+\begin{quote}
+\small
+\begin{verbatim}
+search(clauses, assignment):
+    if unit_propagation_has_conflict(clauses, assignment):
+        return UNSAT
+    if all_clauses_satisfied(clauses, assignment):
+        return complete_model(assignment)
+    variable = smallest_unassigned_variable(assignment)
+    for value in [False, True]:
+        result = search(clauses, assignment + {variable: value})
+        if result is SAT:
+            return result
+    return UNSAT
+\end{verbatim}
+\end{quote}
+
+\clearpage
+\subsection{Ví dụ lan truyền mệnh đề đơn vị}
+
+Xét $F=(C_A\lor C_B)\land(\neg C_A)\land(\neg C_B\lor C_C)$.
+Mệnh đề thứ hai buộc $C_A=0$. Khi đó mệnh đề đầu buộc $C_B=1$,
+và mệnh đề thứ ba buộc $C_C=1$. Cả ba mệnh đề đều thỏa sau ba lần
+lan truyền và không cần quyết định phân nhánh nào. Nếu thêm mệnh đề
+đơn vị $\neg C_C$, công thức trở thành UNSAT.
+
+\paragraph{Ví dụ phân nhánh.}
+Công thức kiểm thử
+\[
+  (x\lor y)\land(x\lor\neg y)\land(\neg x\lor y)
+    \land(\neg x\lor\neg y)
+\]
+ban đầu không có mệnh đề đơn vị. DPLL chọn $x$. Nhánh $x=0$ buộc đồng
+thời $y$ và $\neg y$ qua hai mệnh đề đầu. Nhánh $x=1$ cũng buộc $y$
+và $\neg y$ qua hai mệnh đề cuối. Cả hai nhánh thất bại, nên công thức
+là UNSAT và bộ giải thực sự phải quay lui. Với công thức này, chương
+trình ghi nhận một quyết định, hai lần lan truyền, hai mâu thuẫn, hai
+lần quay lui và ba lời gọi đệ quy.
+
+\paragraph{Tính đầy đủ của quy trình.}
+Lan truyền đơn vị chỉ gán những giá trị mà mọi phép gán hoàn chỉnh của
+nhánh buộc phải có. Một mệnh đề mâu thuẫn loại mọi cách hoàn tất nhánh.
+Khi cần phân nhánh, hai giá trị sai và đúng của biến được chọn chia
+toàn bộ phép gán còn lại thành hai tập. Mỗi nhánh cố định thêm một
+biến nên quy trình dừng trên mọi công thức hữu hạn. Khi phép gán bộ
+phận đã thỏa tất cả mệnh đề, gán sai cho những biến còn lại vẫn giữ
+cho công thức được thỏa.
+
+\subsection{Chỉ số và kiểm thử}
+
+Một quyết định được tính khi chọn biến để phân nhánh. Một bước lan
+truyền được tính khi mệnh đề đơn vị gán thêm giá trị. Mâu thuẫn xảy
+ra khi một mệnh đề sai dưới phép gán bộ phận. Mỗi nhánh con thất bại
+được tính là một lần quay lui. Bộ giải cũng ghi số lời gọi đệ quy và
+thời gian chạy. Thứ tự chọn biến và thử giá trị cố định giúp các bộ
+đếm lặp lại được. Các bài kiểm thử bao gồm mô hình SAT, giả định dẫn
+đến UNSAT, lan truyền đơn vị và công thức buộc phải quay lui.
+
+\clearpage
+\section{Giao diện trình duyệt và tích hợp}
+\subsection{Cách chơi một ván}
+
+Chạy \code{python main.py} từ thư mục dự án. Trình khởi động mở bàn
+bóng đá tại một địa chỉ cục bộ và in địa chỉ đó trong terminal.
+Tiến trình Python phục vụ HTML, CSS, JavaScript, ảnh cầu thủ và API JSON.
+Giữ tiến trình này hoạt động trong lúc chơi.
+
+\begin{itemize}
+  \item \textbf{Load và Restart.} Chọn bàn chơi từ danh mục hoặc đưa bàn
+    hiện tại về trạng thái ban đầu. Tiêu đề, danh mục và lưới hiển thị
+    cùng một bàn.
+  \item \textbf{Chơi thủ công.} Chọn thẻ trên sân hoặc hàng tương ứng
+    trong danh sách cầu thủ, sau đó nhập phán quyết nếu thẻ chưa giải.
+    Thẻ đã mở hiển thị manh mối và tô sáng các ô liên quan trên sân.
+  \item \textbf{Hint, Step, Auto Solve và Instant.} Hint chỉ một nước đi
+    bắt buộc và giữ thẻ úp. Step thực hiện một nước đi. Auto Solve thực
+    hiện các bước theo tốc độ đã chọn và có thể tạm dừng. Instant chạy
+    vòng giải từng bước cho tới trạng thái kết thúc.
+  \item \textbf{Trace, KB và nghiệm duy nhất.} Xem các bước chứng minh đã
+    chấp nhận, trích đoạn mệnh đề công khai, thống kê SAT và kết quả kiểm
+    tra nghiệm duy nhất trên toàn bộ manh mối.
+\end{itemize}
+
+\subsection{Khôi phục kết nối và kiểm thử tích hợp}
+
+Trình khởi động ưu tiên một cổng cục bộ cố định và chuyển sang cổng
+còn trống nếu cổng đó đang được dùng. Khi nhận thao tác từ phiên máy
+chủ cũ, trình duyệt làm mới bàn trước khi nhận nước đi tiếp theo.
+Nếu mất kết nối API, giao diện tạm dừng giải tự động và hướng dẫn
+mở địa chỉ do trình khởi động in ra.
+
+Các kiểm thử tích hợp bao quát danh mục bàn, trạng thái công khai,
+chơi tay, gợi ý, giải một bước, giải toàn bộ, kiểm tra nghiệm duy
+nhất, chơi lại và hiển thị ảnh cầu thủ. Bàn chẩn đoán mơ hồ minh họa
+trường hợp chưa chứng minh được. Bàn chẩn đoán không nhất quán minh
+họa trường hợp mâu thuẫn. Cả hai đều giữ các thẻ chưa giải ở trạng
+thái úp và nhật ký suy luận rỗng.
+
+\subsection{Kiểm tra yêu cầu trên trình duyệt}
+
+\begin{center}
+\small
+\begin{tabular}{@{}L{53mm}L{97mm}@{}}
+\textbf{Thao tác hoặc yêu cầu} & \textbf{Kết quả quan sát trên Chrome}\\ \hline
+Nạp bàn Rookie Training & Bàn có 16 thẻ với tọa độ hàng, cột, tên và
+vị trí thi đấu. Thẻ mở sẵn hiển thị manh mối.\\
+Chọn D4 là tội phạm ở đầu ván & Trả \code{NOT_PROVABLE}. D4 vẫn úp và
+số thẻ đã giải giữ ở $1/16$.\\
+Bấm Hint rồi chọn B1 là tội phạm & Hint chỉ ra B1 vô tội và giữ B1 úp.
+Phán quyết B1 là tội phạm trả \code{CONTRADICTED}.\\
+Chọn B1 vô tội & B1 mở manh mối, số thẻ đã giải tăng lên $2/16$ và
+các ô liên quan được tô sáng. Trace ghi bước 1, \code{clue_A1}, hai
+giả định kiểm tra cho B1 và \code{clue_B1}.\\
+Bấm Restart rồi Auto Solve & Restart đưa bàn về $1/16$. Auto Solve
+đạt $16/16$. Phép kiểm tra riêng xác nhận có đúng một nghiệm.\\
+Nạp Deep Inference và bấm Instant & Bàn $5\times5$ đạt $25/25$.\\ \hline
+\end{tabular}
+\end{center}
+
+\clearpage
+\subsection{Phạm vi kiểm tra và các điểm còn thiếu}
+\label{sec:scope-gaps}
+
+\begin{itemize}
+  \item Các thao tác bắt buộc và việc tô sáng ô liên quan tới manh mối
+    đã mở đều được xác nhận trên các bàn đi kèm. Với bàn tùy chỉnh,
+    \code{GROUP_MOST} và \code{GROUP_ONLY} chỉ tô sáng nhóm được nêu
+    trong manh mối, còn thiếu các nhóm đem ra so sánh. Một bàn thử
+    dùng một trong hai manh mối trên cho hàng 2 chỉ trả A2, B2 và C2
+    làm mục tiêu tô sáng.
+  \item Bộ kiểm tra JSON kiểm tra vùng tham chiếu, mã ô và giới hạn
+    số đếm. Hiện tại, \code{true} được chấp nhận như số nguyên 1 trong
+    ràng buộc đếm và trong chỉ số hàng dạng số. Đề yêu cầu giới hạn
+    là số nguyên. Các bàn đi kèm đều dùng giá trị số.
+  \item Luồng chơi và Hint chỉ dùng thông tin đã công khai. Phương
+    thức kiểm tra nghiệm duy nhất nhận tất cả manh mối và được gọi
+    riêng. Phương thức này vẫn thuộc lớp \code{LogicAgent}, cùng với
+    các phương thức suy luận công khai, nên sự phân tách nằm ở luồng gọi.
+\end{itemize}
+
+\paragraph{Phạm vi đối chiếu.}
+Các nhận xét trên áp dụng cho phiên bản mã nguồn đã kiểm tra.
+Cả năm bàn chuẩn đều vượt qua lệnh kiểm định khả năng thỏa, tính
+duy nhất của nghiệm và khả năng hoàn thành bằng suy luận từng bước.
+
+
+\clearpage
+\section{Thực nghiệm}
+\subsection{Phương pháp}
+
+Tập cấu hình \nolinkurl{experiments/puzzle_set.json} cố định năm ca
+thực nghiệm. Bàn Binary Foundations $3\times3$ dùng các manh mối
+nhị phân cơ bản. Counting Trail cùng kích thước bổ sung các ràng buộc
+đếm. Hai bàn $4\times4$ Rookie Training và Intersecting Testimony đòi
+hỏi thứ tự suy luận phức tạp hơn. Bàn Deep Inference $5\times5$ dùng
+để thử tải bộ mã hóa và bộ giải.
+
+Bộ số liệu lưu trong kho mã được đo ngày 20 tháng 11 năm 2026.
+Mỗi bàn được chạy năm lần trên Windows 11 với Python 3.14.7 và
+giới hạn 60 giây mỗi lần. Số biến chính, biến phụ và mệnh đề mô tả
+CNF của toàn bộ tập manh mối. Số lần gọi SAT, các chỉ số tìm kiếm và
+thời gian được cộng dồn khi giải từng bước từ các ô mở sẵn. Trình
+chạy giữ lại các ca thất bại hoặc hết thời gian cùng số lần đã chạy
+xong. Các cột thời gian ghi trung bình và độ lệch chuẩn tổng thể của
+các lần đã hoàn thành.
+
+\subsection{Kích thước công thức và số bước suy luận}
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{3.6pt}
+\begin{tabular}{@{}lrrrrrrl@{}}
+\textbf{Bàn} & \textbf{Lưới} & \textbf{Biến chính} & \textbf{Biến phụ} &
+\textbf{Mệnh đề} & \textbf{Gọi SAT} & \textbf{Bước} & \textbf{Lượt giải}\\ \hline
+Binary Foundations    & $3\times3$ & 9  & 0     & 16     & 24  & 8  & 5/5\\
+Counting Trail        & $3\times3$ & 9  & 66    & 185    & 24  & 8  & 5/5\\
+Rookie Training       & $4\times4$ & 16 & 315   & 1,611  & 93  & 15 & 5/5\\
+Intersecting Testimony& $4\times4$ & 16 & 681   & 4,838  & 153 & 15 & 5/5\\
+Deep Inference        & $5\times5$ & 25 & 1,442 & 13,493 & 268 & 24 & 5/5\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Chi phí tìm kiếm và thời gian chạy DPLL}
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{2.4pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\textbf{Bàn} & \shortstack[r]{\textbf{Quyết}\\\textbf{định}} &
+\shortstack[r]{\textbf{Lan}\\\textbf{truyền}} &
+\shortstack[r]{\textbf{Mâu}\\\textbf{thuẫn}} &
+\textbf{Quay lui} & \textbf{DPLL (ms)} & \textbf{Tổng (ms)}\\ \hline
+Binary Foundations &
+0 & 132 & 8 & 0 & $0.28\pm0.01$ & $0.49\pm0.02$\\
+Counting Trail &
+0 & 924 & 8 & 0 & $2.57\pm0.31$ & $3.38\pm0.46$\\
+Rookie Training &
+222 & 8,578 & 33 & 18 & $57.61\pm2.92$ & $61.97\pm3.16$\\
+Intersecting Testimony &
+813 & 31,737 & 173 & 295 & $348.65\pm3.94$ & $370.98\pm4.27$\\
+Deep Inference &
+5,658 & 176,415 & 3,831 & 7,086 & $5682.17\pm161.31$ & $5734.07\pm162.10$\\ \hline
+\end{tabular}
+\end{center}
+
+Thời gian DPLL là tổng thời gian trong các lần gọi bộ giải. Tổng thời
+gian bao gồm cả vòng suy luận từng bước, việc dựng CNF công khai và
+cập nhật nhật ký. Cả hai cột thời gian đều loại trừ việc nạp bàn và
+lần mã hóa toàn bộ manh mối để đo kích thước. Số liệu gốc nằm trong
+\nolinkurl{results/benchmark_results.json}.
+
+\clearpage
+\subsection{Các ca chẩn đoán và khả năng tái lập}
+
+Tập thực nghiệm cố định có 0 lần thất bại và 0 lần hết thời gian.
+Hai bàn chẩn đoán bổ sung kiểm tra trạng thái kết thúc trên GUI và
+API. Chúng nằm ngoài danh sách thực nghiệm cố định và phục vụ hai
+mục đích kiểm tra riêng.
+
+\begin{center}
+\small
+\begin{tabular}{@{}L{39mm}L{52mm}L{59mm}@{}}
+\textbf{Bàn chẩn đoán} & \textbf{Suy luận công khai} & \textbf{Kiểm tra toàn bộ manh mối}\\ \hline
+Ambiguous VAR check & Hint và giải tự động trả \code{NOT_PROVABLE}.
+Các ô chưa giải và nhật ký giữ nguyên. &
+\code{AMBIGUOUS}. Sau khi thêm mệnh đề chặn, vẫn còn một phép gán khác
+trên các biến chính.\\
+Inconsistent match reports & Cơ sở tri thức công khai ban đầu là UNSAT,
+nên giải tự động trả \code{INCONSISTENT}. Các ô chưa giải và nhật ký giữ
+nguyên. & \code{INCONSISTENT}. Lần gọi SAT đầu tiên trả UNSAT trên tập
+manh mối đầy đủ.\\ \hline
+\end{tabular}
+\end{center}
+
+Trình nạp cho phép riêng bàn chẩn đoán mâu thuẫn để minh họa kết quả
+này. Với bàn chuẩn, bộ kiểm định kiểm tra từng manh mối theo lời giải
+có sẵn. Các bài kiểm thử tự động còn đưa vào dữ liệu sai định dạng
+để kiểm tra \code{FAILED} và cố tình đặt giới hạn thời gian rất ngắn
+để kiểm tra \code{TIMEOUT}. Lượt giải nhất quán nhưng bị kẹt có trạng
+thái kết thúc \code{UNKNOWN}. Trình chạy giữ các dòng này trong kết
+quả cùng chi tiết lỗi và số lần chạy đã hoàn thành.
+
+\begin{quote}
+\small
+\begin{verbatim}
+python main.py validate puzzles
+python main.py experiments --manifest experiments/puzzle_set.json
+    --runs 5 --timeout 60 --json results/benchmark_results.json
+\end{verbatim}
+\end{quote}
+
+Lệnh thứ hai được trình bày trên hai dòng và cần nhập thành một dòng
+khi chạy. Đợt kiểm tra lặp lại năm bàn, mỗi bàn năm lần với cùng giới
+hạn 60 giây trên Python 3.12.14 và Windows 11. Tất cả các lần đều giải
+xong, và các chỉ số đếm xác định khớp với bộ số liệu trong kho mã.
+Deep Inference mất trung bình 10,03 giây trong lần chạy lại và 5,73
+giây trong bộ số liệu đã lưu. Đây là hai đợt đo riêng với ảnh hưởng
+của phiên bản trình thông dịch và tải hệ thống chưa được tách riêng.
+
+\clearpage
+\subsection{Nhận xét và giới hạn}
+\begin{itemize}
+  \item Cùng kích thước $3\times3$, Counting Trail có 185 mệnh đề và
+    66 biến phụ, còn Binary Foundations có 16 mệnh đề và 0 biến phụ.
+    Counting Trail thực hiện số lần lan truyền gấp bảy lần.
+  \item Cả hai bàn $3\times3$ đạt mức tối thiểu 24 lần gọi SAT cho
+    tám nước đi. Với 15 nước đi, mức tối thiểu là 45 lần. Rookie
+    Training dùng 93 lần, còn Intersecting Testimony dùng 153 lần,
+    tương ứng với 24 và 54 lượt xét ứng viên chưa xác định rồi bỏ qua.
+    Chênh lệch đến từ thứ tự xét và thời điểm các manh mối được mở.
+  \item Intersecting Testimony cần số mệnh đề gấp khoảng ba lần Rookie
+    Training và tổng thời gian giải trung bình gấp khoảng sáu lần.
+    Deep Inference sinh 1.442 biến phụ và 13.493 mệnh đề, tức có số
+    mệnh đề gấp khoảng 2,8 lần và số quyết định gần gấp 7 lần
+    Intersecting Testimony. Tổng thời gian trung bình trong bộ số liệu
+    đã lưu là khoảng 5,73 giây, trong đó khoảng 99\% là thời gian DPLL.
+  \item Cả 25 lần đo đều hoàn thành. Năm bàn đại diện cho các độ khó
+    tăng dần và dùng một chiến lược phân nhánh xác định. Thời gian
+    còn phụ thuộc phần cứng, tải hệ thống, cấu trúc manh mối và thứ tự
+    suy luận.
+\end{itemize}
+
+Chương trình quét lại các mệnh đề và giải từng giả định từ đầu. Một
+số mã hóa dùng bảng chân trị cục bộ có kích thước tăng theo hàm mũ
+của số ô trong vùng. Các kết quả thời gian áp dụng cho tập bàn và
+điều kiện đo đã ghi nhận.
+
+\section{Kết luận}
+
+Engine chỉ công bố manh mối mới sau khi phán quyết đã được chứng minh
+từ $KB$ công khai. Bộ mã hóa và bộ giải DPLL hỗ trợ chơi tương tác,
+giải tự động, ghi nhật ký và kiểm tra nghiệm duy nhất. Cả năm ca thực
+nghiệm đều giải được trong mỗi lần đo. Các cặp bàn cùng kích thước
+cho thấy cấu trúc manh mối ảnh hưởng thế nào đến kích thước CNF và
+số lần gọi SAT cần thiết để tiếp tục suy luận.
+
+\paragraph{Kết quả đối chiếu đề.}
+Năm bàn đi kèm đáp ứng các yêu cầu về trò chơi và suy luận đã được kiểm
+tra. Đợt đối chiếu chạy 35 bài kiểm thử tự động, kiểm tra độc lập bằng cách
+liệt kê phép gán trên bốn bàn và thực hiện các thao tác trên Chrome, kể cả
+hai trạng thái kết thúc chẩn đoán. Kiểm tra dữ liệu và tô sáng trên bàn
+tùy chỉnh còn các điểm nêu tại Mục~\ref{sec:scope-gaps}. Hồ sơ nộp còn
+chờ nhóm xác nhận tỷ lệ hoàn thành từng thành viên và bổ sung liên kết
+video có quyền xem.
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+\begin{thebibliography}{9}
+\bibitem{spec}
+Khoa Công nghệ Thông tin, Trường Đại học Khoa học Tự nhiên.
+\emph{CSC14003 Nhập môn Trí tuệ nhân tạo, đồ án 2: Griductive Solver}.
+Đề đồ án, các mục 2--5.
+
+\bibitem{dpll}
+M. Davis, G. Logemann và D. Loveland.
+\emph{A Machine Program for Theorem-Proving}.
+Communications of the ACM, 5(7), 394--397, 1962.
+
+\bibitem{aima}
+S. J. Russell và P. Norvig.
+\emph{Artificial Intelligence: A Modern Approach}, ấn bản thứ 4, Pearson, 2020.
+
+\bibitem{results}
+Nhóm Griductive Solver. Mã nguồn, kiểm thử tự động và kết quả đo
+trong kho mã của dự án, tháng 11 năm 2026.
+
+\bibitem{credits}
+Nhóm Griductive Solver. Nguồn và thông tin giấy phép ảnh cầu thủ,
+ảnh sân vận động trong \nolinkurl{assets/CREDITS.md}.
+\end{thebibliography}
+
+\appendix
+\section{Sử dụng AI tạo sinh}
+
+Nhóm dùng ChatGPT/Codex để đọc lại mã nguồn và chỉnh báo cáo. Một câu
+hỏi nhóm đặt ra là \emph{Vì sao bấm các nút trong game lại báo Failed to
+fetch?} Sau khi sửa, các nút và khả năng kết nối lại được kiểm tra trên
+Chrome. Nhóm cũng nhờ công cụ chỉnh phông LaTeX và cập nhật bảng phân
+công theo thông tin đã thống nhất.
+
+Khi đọc lại đề, nhóm hỏi thêm \emph{Game đã đáp ứng các yêu cầu trong
+đề chưa? Báo cáo còn thiếu phần phân tích nào?} Phần đối chiếu dựa vào
+mã nguồn, kết quả kiểm thử và việc liệt kê các phép gán trên hai bàn
+$3\times3$ và hai bàn $4\times4$ để kiểm tra từng bước suy luận.
+
+Số liệu trong báo cáo lấy từ kết quả chạy chương trình. Hai ví dụ CNF
+lấy từ các manh mối có sẵn trong game và được đối chiếu với kết quả
+mã hóa cùng nhật ký suy luận.
+
+\end{document}
