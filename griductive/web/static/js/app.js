@@ -10,7 +10,7 @@ const nodes = new Map();
 const formatNumber = new Intl.NumberFormat("en-US");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
-let match, selected, pinned, hovered, focused, hint;
+let match, selected, latestClue, pinned, hovered, focused, hint;
 let tab = "squad";
 let busy = false, running = false, needsSync = false, sound = false;
 let timer, noticeTimer, audio, tooltipFrame;
@@ -134,16 +134,19 @@ function previewCard(id, source) {
   if (match && previous !== (hovered ?? focused)) renderTactics();
 }
 
-function renderPitchClue(pinnedCard, activeHint) {
-  const player = pinnedCard ?? match.cards.find(card => card.id === activeHint?.cell);
+function renderPitchClue(clueCard, activeHint) {
+  const player = clueCard ?? match.cards.find(card => card.id === activeHint?.cell);
   const banner = $("pitch-clue");
   banner.hidden = !player;
   if (banner.hidden) return;
-  banner.dataset.status = pinnedCard?.status ?? activeHint.status;
-  $("pitch-clue-label").textContent = pinnedCard ? "Pinned clue" : "Tactical hint";
-  $("unpin-clue").hidden = !pinnedCard;
+  banner.dataset.status = clueCard?.status ?? activeHint.status;
+  $("pitch-clue-label").textContent = clueCard ? (pinned ? "Pinned clue" : "Revealed clue") : "Tactical hint";
+  const close = $("close-pitch-clue");
+  close.hidden = !clueCard;
+  close.title = pinned ? "Unpin clue" : "Dismiss clue";
+  close.setAttribute("aria-label", close.title);
   $("pitch-clue-owner").textContent = player.id + " · " + player.name;
-  const text = pinnedCard?.clue.text ??
+  const text = clueCard?.clue.text ??
     (player.name + " is provably " + activeHint.status + ". Highlighted cards have active clues.");
   if ($("pitch-clue-text").textContent !== text) $("pitch-clue-text").textContent = text;
 }
@@ -165,10 +168,11 @@ function positionTooltip() {
 }
 
 function renderTactics() {
-  const pinnedCard = match.cards.find(card => card.id === pinned && card.clue);
-  const preview = match.cards.find(card => card.id === (hovered ?? focused) && card.clue);
   const activeHint = hint?.cell === selected ? hint : undefined;
-  renderPitchClue(pinnedCard, activeHint);
+  const owner = pinned ?? (activeHint ? undefined : latestClue);
+  const clueCard = match.cards.find(card => card.id === owner && card.clue);
+  const preview = match.cards.find(card => card.id === (hovered ?? focused) && card.clue);
+  renderPitchClue(clueCard, activeHint);
 
   tooltip.hidden = !preview;
   if (preview) {
@@ -177,7 +181,7 @@ function renderTactics() {
     positionTooltip();
   }
 
-  updateHighlights(pinnedCard, preview, activeHint);
+  updateHighlights(clueCard, preview, activeHint);
 }
 
 function clueLinks(clue) {
@@ -211,12 +215,12 @@ function buildLaser(from, to, color, mode) {
   return {from, to, group, paths, tip};
 }
 
-function updateHighlights(pinnedCard, preview, activeHint) {
+function updateHighlights(clueCard, preview, activeHint) {
   const targets = new Map();
   const connections = [];
-  if (pinnedCard) connections.push(["pinned", pinnedCard.id, clueLinks(pinnedCard.clue)]);
+  if (clueCard) connections.push(["clue", clueCard.id, clueLinks(clueCard.clue)]);
   if (activeHint) connections.push(["hint", activeHint.cell, new Map(activeHint.active.map(id => [id, "hint"]))]);
-  if (preview && preview.id !== pinned) connections.push(["preview", preview.id, clueLinks(preview.clue)]);
+  if (preview && preview.id !== clueCard?.id) connections.push(["preview", preview.id, clueLinks(preview.clue)]);
   lasers = [];
   for (const [mode, source, links] of connections) {
     for (const [target, color] of links) {
@@ -230,7 +234,7 @@ function updateHighlights(pinnedCard, preview, activeHint) {
   for (const [id, slot] of nodes) {
     const shield = slot.querySelector(".shield");
     slot.classList.toggle("selected", id === selected);
-    slot.classList.toggle("pinned", id === pinned);
+    slot.classList.toggle("clue-owner", id === clueCard?.id);
     slot.classList.toggle("previewed", id === preview?.id);
     shield.setAttribute("aria-pressed", String(slot.dataset.status === "UNKNOWN" ? id === selected : id === pinned));
     if (id === preview?.id) shield.setAttribute("aria-describedby", tooltip.id);
@@ -407,14 +411,18 @@ function renderMetrics(state, fresh) {
 
 function render(state, fresh = false) {
   fresh ||= !match || state.puzzle !== match.puzzle;
-  match = state;
+  const lastStep = state.trace.at(-1);
   if (fresh) {
-    pinned = state.cards.find(card => card.clue)?.id;
-    selected = pinned ?? state.cards[0]?.id;
+    latestClue = lastStep?.cell_id ?? state.cards.find(card => card.clue)?.id;
+    selected = latestClue ?? state.cards[0]?.id;
+    pinned = undefined;
     hint = undefined;
     hovered = undefined;
     focused = undefined;
+  } else if (state.trace.length > match.trace.length) {
+    latestClue = lastStep.cell_id;
   }
+  match = state;
   $("case-title").textContent = state.title;
   $("squad-count").textContent = state.total + " players";
   $("cases").value = state.puzzle;
@@ -565,11 +573,12 @@ $("sound").onclick = () => {
 
 $("close-alert").onclick = dismissNotice;
 $("close-review").onclick = () => $("review").close();
-$("unpin-clue").onclick = () => {
-  const owner = nodes.get(pinned);
-  pinned = undefined;
+$("close-pitch-clue").onclick = () => {
+  if (pinned) pinned = undefined;
+  else latestClue = undefined;
   renderTactics();
-  owner?.querySelector(".shield").focus({preventScroll: true});
+  const owner = !hint && nodes.get(latestClue)?.querySelector(".shield");
+  (owner || $("auto")).focus({preventScroll: true});
 };
 
 const sheetTabs = [...document.querySelectorAll("[data-tab]")];

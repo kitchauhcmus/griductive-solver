@@ -443,7 +443,7 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
 .player-slot[data-link="both"] { --link: var(--cyan); }
 .player-slot[data-link="pair"] { --link: #f0a5ff; }
 .player-slot[data-link="hint"] { --link: var(--lime); }
-.player-slot:is(.selected, .pinned, .previewed) { z-index: 2; }
+.player-slot:is(.selected, .clue-owner, .previewed) { z-index: 2; }
 .player-slot:hover, .player-slot:focus-within { z-index: 4; }
 
 .shield {
@@ -489,7 +489,7 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
   filter: drop-shadow(0 2px 5px #02070d) drop-shadow(0 0 9px var(--aura));
 }
 
-.player-slot:is([data-link], .selected, .pinned, .previewed) .shield::after {
+.player-slot:is([data-link], .selected, .clue-owner, .previewed) .shield::after {
   content: "";
   position: absolute;
   inset: -3px;
@@ -500,9 +500,9 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
 }
 .player-slot[data-link="both"] .shield::after { border-right-color: var(--gold); border-bottom-color: var(--gold); }
 .player-slot.selected:not([data-link]) { --ring: #d7fcf8; }
-.player-slot.pinned:not([data-link]) { --ring: var(--gold); }
-.player-slot.pinned[data-status="CRIMINAL"]:not([data-link]) { --ring: var(--ruby); }
-.player-slot.previewed:not(.pinned, [data-link]) { --ring: var(--mint); }
+.player-slot.clue-owner:not([data-link]) { --ring: var(--gold); }
+.player-slot.clue-owner[data-status="CRIMINAL"]:not([data-link]) { --ring: var(--ruby); }
+.player-slot.previewed:not(.clue-owner, [data-link]) { --ring: var(--mint); }
 
 .card-motion, .card-shell, .card-face, .foil {
   position: absolute;
@@ -674,7 +674,7 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
   cursor: pointer;
 }
 
-.player-slot:is(.pinned, .previewed) .clue-pill { border-color: #aaf6df; }
+.player-slot:is(.clue-owner, .previewed) .clue-pill { border-color: #aaf6df; }
 
 .clue-excerpt {
   display: -webkit-box;
@@ -896,8 +896,8 @@ button:disabled, select:disabled { cursor: wait; opacity: .65; }
   line-height: 1.25;
 }
 
-#unpin-clue { width: 25px; min-height: 25px; color: var(--clue-color); }
-#unpin-clue .icon { width: 14px; height: 14px; }
+#close-pitch-clue { width: 25px; min-height: 25px; color: var(--clue-color); }
+#close-pitch-clue .icon { width: 14px; height: 14px; }
 
 .clue-tooltip {
   position: fixed;
