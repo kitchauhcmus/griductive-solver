@@ -76,7 +76,8 @@
                     <rect x="20" y="19" width="760" height="462" rx="3"/>
                     <path d="M400 19v462M20 119h116v262H20m760-262H664v262h116M20 184h42v132H20m760-132h-42v132h42"/>
                     <ellipse cx="400" cy="250" rx="71" ry="71"/>
-                    <path d="M136 197q53 53 0 106m528-106q-53-53 0-106M20 31q12 0 12-12m736 0q0 12 12 12M20 469q12 0 12 12m736 0q0-12 12-12"/>
+                    <path d="M136 191.34A71 71 0 0 1 136 308.66M664 191.34A71 71 0 0 0 664 308.66"/>
+                    <path d="M20 31q12 0 12-12m736 0q0 12 12 12M20 469q12 0 12 12m736 0q0-12 12-12"/>
                     <circle cx="400" cy="250" r="2" fill="currentColor"/>
                     <circle cx="96" cy="250" r="2" fill="currentColor"/>
                     <circle cx="704" cy="250" r="2" fill="currentColor"/>
@@ -84,24 +85,27 @@
                 </svg>
               </div>
               <div class="floodlights" aria-hidden="true"></div>
-              <div class="light-dust" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+              <div class="light-dust" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
               <div class="formation">
                 <div id="col-rail" class="col-rail" aria-hidden="true"></div>
                 <div id="row-rail" class="row-rail" aria-hidden="true"></div>
+                <svg id="lines" aria-hidden="true"><g></g></svg>
                 <div id="grid" class="grid" aria-label="Player cards"></div>
               </div>
             </div>
-            <svg id="lines" aria-hidden="true"><g></g></svg>
           </div>
 
           <div class="clue-dock">
             <div id="pitch-clue" class="pitch-clue" hidden>
               <svg class="icon" aria-hidden="true"><use href="#i-target"/></svg>
               <div class="pitch-clue-source">
-                <span>Active clue</span>
+                <span id="pitch-clue-label">Pinned clue</span>
                 <strong id="pitch-clue-owner"></strong>
               </div>
-              <p id="pitch-clue-text"></p>
+              <p id="pitch-clue-text" aria-live="polite"></p>
+              <button id="unpin-clue" class="square" type="button" aria-label="Unpin clue" title="Unpin clue">
+                <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -143,6 +147,11 @@
         </section>
       </aside>
     </main>
+  </div>
+
+  <div id="clue-tooltip" class="clue-tooltip" role="tooltip" hidden>
+    <strong id="clue-tooltip-owner"></strong>
+    <p id="clue-tooltip-text"></p>
   </div>
 
   <div id="alert" role="status" aria-live="polite" hidden>

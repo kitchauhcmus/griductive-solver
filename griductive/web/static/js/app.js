@@ -1,18 +1,19 @@
-import {createCard, createCardPreview, updateCard, element as el} from "./card_art.js";
+import {createAvatar, createCard, updateCard, element as el} from "./card_art.js";
 
 const $ = id => document.getElementById(id);
 const grid = $("grid");
 const pitch = $("pitch");
 const lineLayer = $("lines").querySelector("g");
+const tooltip = $("clue-tooltip");
 const svgNS = "http://www.w3.org/2000/svg";
 const nodes = new Map();
 const formatNumber = new Intl.NumberFormat("en-US");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
-let match, selected, previewed, hint;
+let match, selected, pinned, hovered, focused, hint;
 let tab = "squad";
 let busy = false, running = false, needsSync = false, sound = false;
-let timer, noticeTimer, audio, laserFrame;
+let timer, noticeTimer, audio, tooltipFrame;
 let lasers = [];
 
 const metricLabels = {
@@ -103,7 +104,6 @@ function notice(result, message) {
 function renderBoard(fresh) {
   const size = match.size;
   pitch.dataset.size = size;
-  pitch.style.setProperty("--size", size);
   if (fresh) {
     grid.replaceChildren();
     nodes.clear();
@@ -117,7 +117,8 @@ function renderBoard(fresh) {
     } else {
       const card = createCard(player, {
         select: selectCard,
-        preview: previewCard,
+        hover: id => previewCard(id, "hover"),
+        focus: id => previewCard(id, "focus"),
         verdict: (cell, status) => perform("verdict", {cell, status})
       });
       nodes.set(player.id, card);
@@ -126,23 +127,57 @@ function renderBoard(fresh) {
   }
 }
 
-function previewCard(id) {
-  previewed = id;
-  if (match) renderPitchClue();
+function previewCard(id, source) {
+  const previous = hovered ?? focused;
+  if (source === "hover") hovered = id;
+  else focused = id;
+  if (match && previous !== (hovered ?? focused)) renderTactics();
 }
 
-function renderPitchClue() {
-  const projected = match.cards.find(card => card.id === previewed && card.clue);
-  const player = projected ?? match.cards.find(card => card.id === selected);
-  const activeHint = player?.id === hint?.cell && !player?.clue ? hint : null;
+function renderPitchClue(pinnedCard, activeHint) {
+  const player = pinnedCard ?? match.cards.find(card => card.id === activeHint?.cell);
   const banner = $("pitch-clue");
-  banner.hidden = !player?.clue && !activeHint;
+  banner.hidden = !player;
   if (banner.hidden) return;
-  banner.dataset.status = player.status;
-  banner.querySelector(".pitch-clue-source span").textContent = activeHint ? "Tactical hint" : "Active clue";
+  banner.dataset.status = pinnedCard?.status ?? activeHint.status;
+  $("pitch-clue-label").textContent = pinnedCard ? "Pinned clue" : "Tactical hint";
+  $("unpin-clue").hidden = !pinnedCard;
   $("pitch-clue-owner").textContent = player.id + " · " + player.name;
-  $("pitch-clue-text").textContent = player.clue?.text ??
+  const text = pinnedCard?.clue.text ??
     (player.name + " is provably " + activeHint.status + ". Highlighted cards have active clues.");
+  if ($("pitch-clue-text").textContent !== text) $("pitch-clue-text").textContent = text;
+}
+
+function positionTooltip() {
+  if (tooltip.hidden) return;
+  const slot = nodes.get(hovered ?? focused);
+  if (!slot) return;
+  const anchor = slot.querySelector(".shield").getBoundingClientRect();
+  const {clientWidth, clientHeight} = document.documentElement;
+  const {offsetWidth: width, offsetHeight: height} = tooltip;
+  const gap = 8;
+  const center = anchor.left + anchor.width / 2;
+  const above = anchor.top - gap - height;
+  const below = slot.getBoundingClientRect().bottom + gap;
+  const top = above >= gap || below + height > clientHeight - gap ? above : below;
+  tooltip.style.left = Math.max(gap, Math.min(center - width / 2, clientWidth - width - gap)) + "px";
+  tooltip.style.top = Math.max(gap, Math.min(top, clientHeight - height - gap)) + "px";
+}
+
+function renderTactics() {
+  const pinnedCard = match.cards.find(card => card.id === pinned && card.clue);
+  const preview = match.cards.find(card => card.id === (hovered ?? focused) && card.clue);
+  const activeHint = hint?.cell === selected ? hint : undefined;
+  renderPitchClue(pinnedCard, activeHint);
+
+  tooltip.hidden = !preview;
+  if (preview) {
+    $("clue-tooltip-owner").textContent = preview.id + " · " + preview.name;
+    $("clue-tooltip-text").textContent = preview.clue.text;
+    positionTooltip();
+  }
+
+  updateHighlights(pinnedCard, preview, activeHint);
 }
 
 function clueLinks(clue) {
@@ -160,10 +195,11 @@ function clueLinks(clue) {
   }));
 }
 
-function buildLaser(from, to, color) {
+function buildLaser(from, to, color, mode) {
   const group = document.createElementNS(svgNS, "g");
   group.classList.add("laser");
   group.dataset.link = color;
+  group.dataset.mode = mode;
   const paths = ["laser-halo", "laser-track", "laser-pulse"].map(className => {
     const path = document.createElementNS(svgNS, "path");
     path.classList.add(className);
@@ -175,52 +211,60 @@ function buildLaser(from, to, color) {
   return {from, to, group, paths, tip};
 }
 
-function updateHighlights() {
-  const player = match.cards.find(card => card.id === selected);
-  const targets = clueLinks(player?.clue);
-  if (hint?.cell === selected) {
-    for (const id of hint.active) targets.set(id, "hint");
+function updateHighlights(pinnedCard, preview, activeHint) {
+  const targets = new Map();
+  const connections = [];
+  if (pinnedCard) connections.push(["pinned", pinnedCard.id, clueLinks(pinnedCard.clue)]);
+  if (activeHint) connections.push(["hint", activeHint.cell, new Map(activeHint.active.map(id => [id, "hint"]))]);
+  if (preview && preview.id !== pinned) connections.push(["preview", preview.id, clueLinks(preview.clue)]);
+  lasers = [];
+  for (const [mode, source, links] of connections) {
+    for (const [target, color] of links) {
+      if (target === source || !nodes.has(target)) continue;
+      targets.set(target, color);
+      lasers.push(mode === "hint" ? buildLaser(target, source, color, mode) :
+        buildLaser(source, target, color, mode));
+    }
   }
 
   for (const [id, slot] of nodes) {
+    const shield = slot.querySelector(".shield");
     slot.classList.toggle("selected", id === selected);
-    slot.querySelector(".shield").setAttribute("aria-pressed", String(id === selected));
-    const color = id === selected ? undefined : targets.get(id);
+    slot.classList.toggle("pinned", id === pinned);
+    slot.classList.toggle("previewed", id === preview?.id);
+    shield.setAttribute("aria-pressed", String(slot.dataset.status === "UNKNOWN" ? id === selected : id === pinned));
+    if (id === preview?.id) shield.setAttribute("aria-describedby", tooltip.id);
+    else shield.removeAttribute("aria-describedby");
+    const color = targets.get(id);
     if (color) slot.dataset.link = color;
     else delete slot.dataset.link;
   }
-  lasers = [...targets].flatMap(([cell, color]) => {
-    if (cell === selected || !nodes.has(cell)) return [];
-    return [color === "hint" ? buildLaser(cell, selected, color) : buildLaser(selected, cell, color)];
-  });
   lineLayer.replaceChildren(...lasers.map(laser => laser.group));
   drawLasers();
 }
 
 function drawLasers() {
   if (!lasers.length) return;
-  const frame = $("lines").getBoundingClientRect();
-  const locations = new Map();
-  const location = id => {
-    if (!locations.has(id)) {
-      const rect = nodes.get(id).querySelector(".shield").getBoundingClientRect();
-      locations.set(id, {
-        x: rect.left + rect.width / 2 - frame.left,
-        y: rect.top + rect.height / 2 - frame.top,
-        width: rect.width,
-        height: rect.height
-      });
-    }
-    return locations.get(id);
-  };
+  // Measure in the shared grid plane, before the pitch's perspective transform.
+  const layout = getComputedStyle(grid);
+  const [width] = layout.gridTemplateColumns.split(" ").map(parseFloat);
+  const [rowHeight] = layout.gridTemplateRows.split(" ").map(parseFloat);
+  const height = parseFloat(getComputedStyle(grid.querySelector(".shield")).height);
+  const strideX = width + parseFloat(layout.columnGap);
+  const strideY = rowHeight + parseFloat(layout.rowGap);
+  const location = id => ({
+    x: (id.charCodeAt(0) - 65) * strideX + width / 2,
+    y: (Number(id.slice(1)) - 1) * strideY + height / 2
+  });
 
   for (const laser of lasers) {
     const a = location(laser.from), b = location(laser.to);
     const length = Math.hypot(b.x - a.x, b.y - a.y);
-    if (!length || !a.width || !b.width) continue;
+    if (!length || !width || !height) continue;
     const dx = (b.x - a.x) / length, dy = (b.y - a.y) / length;
-    const startGap = Math.min(length * .36, .46 / Math.hypot(dx / a.width, dy / a.height));
-    const endGap = Math.min(length * .36, .47 / Math.hypot(dx / b.width, dy / b.height));
+    const edge = 1 / Math.hypot(dx / width, dy / height);
+    const startGap = Math.min(length * .36, .46 * edge);
+    const endGap = Math.min(length * .36, .47 * edge);
     const x1 = a.x + dx * startGap, y1 = a.y + dy * startGap;
     const x2 = b.x - dx * endGap, y2 = b.y - dy * endGap;
     const bend = Math.min(29, length * .11);
@@ -233,26 +277,22 @@ function drawLasers() {
 }
 
 function followPitchTransform() {
-  cancelAnimationFrame(laserFrame);
-  if (reducedMotion.matches) {
-    laserFrame = requestAnimationFrame(drawLasers);
-    return;
-  }
-  const end = performance.now() + 410;
+  cancelAnimationFrame(tooltipFrame);
+  const end = performance.now() + (reducedMotion.matches ? 0 : 480);
   function follow(time) {
-    drawLasers();
-    if (time < end) laserFrame = requestAnimationFrame(follow);
+    positionTooltip();
+    if (!tooltip.hidden && time < end) tooltipFrame = requestAnimationFrame(follow);
   }
-  laserFrame = requestAnimationFrame(follow);
+  tooltipFrame = requestAnimationFrame(follow);
 }
 
 function selectCard(id, focus = false) {
   if (id !== selected) hint = undefined;
   selected = id;
+  if (match.cards.some(card => card.id === id && card.clue)) pinned = id;
   inspect();
   sheet();
-  renderPitchClue();
-  updateHighlights();
+  renderTactics();
   if (focus) nodes.get(id)?.querySelector(".shield").focus({preventScroll: true});
 }
 
@@ -270,16 +310,17 @@ function inspect() {
   }
 
   const ticket = el("div", "inspector-ticket");
-  const thumbnail = el("div", "inspect-card");
-  thumbnail.append(createCardPreview(player));
   const profile = el("div", "inspect-profile");
   const line = el("div", "player-line");
   line.append(el("strong", "", player.name), el("span", "badge " + player.status, player.status));
-  const meta = [player.profession, player.ovr && player.ovr + " OVR", player.club,
+  const ratings = el("div", "inspect-ratings");
+  ratings.append(el("span", "", "OVR " + (player.ovr ?? "–")),
+    el("span", "", "POS " + player.profession));
+  const meta = [player.club,
     player.nation, player.tier, player.shirt_number && "#" + player.shirt_number]
     .filter(Boolean).join(" · ");
-  profile.append(line, el("div", "meta-line", meta));
-  ticket.append(thumbnail, profile);
+  profile.append(line, ratings, el("div", "meta-line", meta));
+  ticket.append(createAvatar(player), profile);
   wrap.append(ticket);
 
   const sameCard = panel.dataset.cell === player.id;
@@ -368,9 +409,11 @@ function render(state, fresh = false) {
   fresh ||= !match || state.puzzle !== match.puzzle;
   match = state;
   if (fresh) {
-    selected = state.cards.find(card => card.status !== "UNKNOWN")?.id ?? state.cards[0]?.id;
+    pinned = state.cards.find(card => card.clue)?.id;
+    selected = pinned ?? state.cards[0]?.id;
     hint = undefined;
-    previewed = undefined;
+    hovered = undefined;
+    focused = undefined;
   }
   $("case-title").textContent = state.title;
   $("squad-count").textContent = state.total + " players";
@@ -379,8 +422,7 @@ function render(state, fresh = false) {
   renderBoard(fresh);
   inspect();
   sheet();
-  renderPitchClue();
-  updateHighlights();
+  renderTactics();
 }
 
 const actionButtons = {step: "step", hint: "hint", instant: "solve", restart: "restart", unique: "uniqueness"};
@@ -523,6 +565,12 @@ $("sound").onclick = () => {
 
 $("close-alert").onclick = dismissNotice;
 $("close-review").onclick = () => $("review").close();
+$("unpin-clue").onclick = () => {
+  const owner = nodes.get(pinned);
+  pinned = undefined;
+  renderTactics();
+  owner?.querySelector(".shield").focus({preventScroll: true});
+};
 
 const sheetTabs = [...document.querySelectorAll("[data-tab]")];
 function selectTab(button) {
@@ -555,7 +603,12 @@ sheetTabs.forEach((button, index) => {
   });
 });
 
-new ResizeObserver(() => requestAnimationFrame(drawLasers)).observe($("pitch-stage"));
+new ResizeObserver(() => {
+  drawLasers();
+  positionTooltip();
+}).observe(grid);
+window.addEventListener("resize", positionTooltip);
+window.addEventListener("scroll", positionTooltip, {passive: true});
 
 setBusy(true);
 try {

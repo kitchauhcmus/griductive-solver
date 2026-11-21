@@ -67,49 +67,42 @@ function updatePortrait(layer, url) {
   image.src = url;
 }
 
-function buildShield(player, preview = false) {
-  const shield = element(preview ? "div" : "button", preview ? "shield card-preview" : "shield");
-  if (preview) shield.setAttribute("aria-hidden", "true");
-  else shield.type = "button";
+function buildShield(player) {
+  const shield = element("button", "shield");
+  shield.type = "button";
 
   const motion = element("span", "card-motion");
   const shell = element("span", "card-shell");
   const face = element("span", "card-face");
+  const hero = element("span", "card-hero");
   const art = element("span", "art");
   const rating = element("span", "rating");
+  const coord = element("span", "coord", player.id);
+  const dot = element("span", "status-dot");
+  dot.setAttribute("aria-hidden", "true");
+  coord.append(dot);
+  const nameplate = element("span", "nameplate");
+  nameplate.append(element("span", "plate", player.name), element("span", "status-crest"));
 
   art.append(jersey(player));
   rating.append(element("b", "", player.ovr ?? "–"), element("small", "", player.profession));
-  face.append(
-    art, element("span", "wash"), element("span", "inner-trim"), rating,
-    element("span", "coord", player.id), element("span", "clue-indicator", "Clue"),
-    element("span", "plate", player.name), element("span", "status-crest"),
-    element("span", "clue-strip"), element("span", "foil")
-  );
+  hero.append(rating, art, coord);
+  face.append(hero, nameplate, element("span", "foil"));
   shell.append(face);
-  motion.append(shell);
-  if (!preview) motion.append(element("span", "card-back"));
+  motion.append(shell, element("span", "card-back"));
   shield.append(motion);
   return shield;
 }
 
-function renderFace(shield, player) {
-  shield.dataset.status = player.status;
-  shield.querySelector(".status-crest").textContent = player.status;
-  shield.querySelector(".clue-indicator").hidden = !player.clue;
-  const strip = shield.querySelector(".clue-strip");
-  strip.hidden = !player.clue;
-  strip.textContent = player.clue?.text ?? "";
-  updatePortrait(shield.querySelector(".art"), player.portrait);
+export function createAvatar(player) {
+  const avatar = element("div", "inspect-avatar");
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.append(jersey(player));
+  updatePortrait(avatar, player.portrait);
+  return avatar;
 }
 
-export function createCardPreview(player) {
-  const shield = buildShield(player, true);
-  renderFace(shield, player);
-  return shield;
-}
-
-export function createCard(player, { select, verdict, preview }) {
+export function createCard(player, { select, verdict, hover, focus }) {
   const slot = element("div", "player-slot");
   slot.dataset.cell = player.id;
 
@@ -129,21 +122,31 @@ export function createCard(player, { select, verdict, preview }) {
   actions.setAttribute("role", "group");
   actions.setAttribute("aria-label", "Quick verdicts for " + player.name);
   for (const status of ["INNOCENT", "CRIMINAL"]) {
-    const button = element("button", "", status);
+    const button = element("button");
     button.type = "button";
     button.dataset.verdict = status;
     button.setAttribute("aria-label", "Mark " + player.name + " " + status.toLowerCase());
+    button.append(element("span", "verdict-label", status),
+      element("span", "verdict-mark", status === "INNOCENT" ? "✓" : "×"));
     button.addEventListener("click", () => verdict(player.id, status));
     actions.append(button);
   }
 
-  slot.addEventListener("pointerenter", () => preview(player.id));
-  slot.addEventListener("pointerleave", () => preview(null));
-  slot.addEventListener("focusin", () => preview(player.id));
-  slot.addEventListener("focusout", event => {
-    if (!slot.contains(event.relatedTarget)) preview(null);
+  slot.addEventListener("pointerenter", event => {
+    if (event.pointerType !== "touch") hover(player.id);
   });
-  slot.append(shield, element("span", "card-burst"), actions);
+  slot.addEventListener("pointerleave", () => hover(null));
+  slot.addEventListener("focusin", event => {
+    if (event.target.matches(":focus-visible")) focus(player.id);
+  });
+  slot.addEventListener("focusout", event => {
+    if (!slot.contains(event.relatedTarget)) focus(null);
+  });
+  const clue = element("span", "clue-pill");
+  clue.setAttribute("aria-hidden", "true");
+  clue.append(element("span", "clue-excerpt"), element("span", "clue-micro", "View clue"));
+  clue.addEventListener("click", () => shield.click());
+  slot.append(shield, element("span", "card-burst"), clue, actions);
   updateCard(slot, player);
   return slot;
 }
@@ -152,14 +155,17 @@ export function updateCard(slot, player) {
   const previous = slot.dataset.status;
   const shield = slot.querySelector(".shield");
   slot.dataset.status = player.status;
-  slot.toggleAttribute("data-clue", Boolean(player.clue));
   slot.querySelector(".quick-verdicts").hidden = player.status !== "UNKNOWN";
-  renderFace(shield, player);
+  shield.querySelector(".status-crest").textContent = player.status;
+  shield.querySelector(".status-dot").className = "status-dot dot " + player.status;
+  const clue = slot.querySelector(".clue-pill");
+  clue.hidden = !player.clue;
+  clue.querySelector(".clue-excerpt").textContent = player.clue?.text ?? "";
+  updatePortrait(shield.querySelector(".art"), player.portrait);
 
   const summary = [player.id, player.name, player.profession, player.ovr, player.tier, player.status]
     .filter(Boolean).join(" · ");
-  shield.title = player.clue ? summary + " — " + player.clue.text : summary;
-  shield.setAttribute("aria-label", shield.title);
+  shield.setAttribute("aria-label", player.clue ? summary + " · Pin clue" : summary);
   if (previous === "UNKNOWN" && player.status !== "UNKNOWN") {
     slot.classList.add("flipping");
     setTimeout(() => slot.classList.remove("flipping"), 870);
