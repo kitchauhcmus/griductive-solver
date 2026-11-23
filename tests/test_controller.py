@@ -10,7 +10,7 @@ from tests.support import EncodedClue, FixtureEngine, chain_fixture, make_agent,
 class ControllerTests(unittest.TestCase):
     def make_controller(self, state=None, **kwargs):
         engine = FixtureEngine(state or make_state((1,), (-2,)), **kwargs)
-        return GameController(engine, make_agent())
+        return GameController(engine, make_agent(), check_revealed_consistency=True)
 
     def test_not_provable_and_contradicted_rejections_do_not_reveal(self):
         controller = self.make_controller()
@@ -118,14 +118,14 @@ class ControllerTests(unittest.TestCase):
     def test_last_revealed_clue_is_checked_before_reporting_solved(self):
         engine = chain_fixture(3)
         engine._hidden_clues["C3"] = EncodedClue("bad_final_clue", ((-1,),))
-        controller = GameController(engine, make_agent())
+        controller = GameController(engine, make_agent(), check_revealed_consistency=True)
         self.assertEqual(len(controller.auto_solve()), 9)
         self.assertIs(controller.last_run_status, RunStatus.INCONSISTENT)
 
     def test_auto_step_reports_final_clue_contradiction_immediately(self):
         engine = chain_fixture(2)
         engine._hidden_clues["B2"] = EncodedClue("bad_final_clue", ((-1,),))
-        controller = GameController(engine, make_agent())
+        controller = GameController(engine, make_agent(), check_revealed_consistency=True)
         self.assertEqual(len(controller.auto_solve(max_steps=3)), 3)
         result = controller.auto_step()
         self.assertIs(result.result, VerdictResult.ACCEPTED)
@@ -136,7 +136,7 @@ class ControllerTests(unittest.TestCase):
     def test_manual_submit_reports_final_clue_contradiction_immediately(self):
         engine = chain_fixture(2)
         engine._hidden_clues["B2"] = EncodedClue("bad_final_clue", ((-1,),))
-        controller = GameController(engine, make_agent())
+        controller = GameController(engine, make_agent(), check_revealed_consistency=True)
         self.assertEqual(len(controller.auto_solve(max_steps=3)), 3)
         result = controller.submit("B2", Status.INNOCENT)
         self.assertIs(result.result, VerdictResult.ACCEPTED)
@@ -196,7 +196,7 @@ class ControllerTests(unittest.TestCase):
                         return clue
                 state = make_state((2,), proved={"A1": Status.CRIMINAL})
                 engine = CorruptingEngine(state, solution={"B1": Status.CRIMINAL})
-                controller = GameController(engine, make_agent())
+                controller = GameController(engine, make_agent(), check_revealed_consistency=True)
                 with self.assertRaises(RuntimeError):
                     controller.auto_solve()
                 self.assertEqual(controller.trace, [])
@@ -208,7 +208,7 @@ class ControllerTests(unittest.TestCase):
                 self._revealed = [clue]
                 return clue
         engine = ErasingEngine(make_state((1,)), solution={"A1": Status.CRIMINAL})
-        controller = GameController(engine, make_agent())
+        controller = GameController(engine, make_agent(), check_revealed_consistency=True)
         with self.assertRaises(RuntimeError):
             controller.auto_solve()
         self.assertEqual(controller.trace, [])

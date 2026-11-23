@@ -16,8 +16,11 @@
       "type": "debugpy",
       "request": "launch",
       "python": "${workspaceFolder}/.venv/Scripts/python.exe",
-      "module": "unittest",
-      "args": ["discover", "-s", "tests", "-v"],
+      "module": "pytest",
+      "args": [
+        "tests",
+        "-v"
+      ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true
@@ -28,7 +31,10 @@
       "request": "launch",
       "python": "${workspaceFolder}/.venv/Scripts/python.exe",
       "module": "unittest",
-      "args": ["tests.test_agent.ClassificationTests.test_forced_criminal_innocent_and_unknown", "-v"],
+      "args": [
+        "tests.test_agent.ClassificationTests.test_forced_criminal_innocent_and_unknown",
+        "-v"
+      ],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true

@@ -1,43 +1,61 @@
-# Agent validation — 21 November 2026
+# Agent validation and main compatibility — 23 November 2026
 
-Environment: Windows, Python 3.13.5, local `.venv`; no third-party test packages.
+The integration contract is team `main` at
+`d946dd1e3c9dab194b3931d71957ab226c2a270a`. The compatibility update retains
+main's application modules, assets, puzzles, concrete shared models, package
+exports and production tests. On Windows with Python 3.13.5 and pytest 8.4.2,
+the combined checkout passed **106 tests in 78.11 seconds**: all 35 main tests
+unchanged, the original 64 Agent tests, and seven added main-contract tests.
+This is a correctness run, not a repeated performance benchmark.
 
-## Local behavior tests
+## Run the complete suite
+
+From the repository root, using the local virtual environment:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m examples.agent_demo
+.\.venv\Scripts\python.exe main.py validate puzzles
+.\.venv\Scripts\python.exe -m examples.team_integration puzzles\3x3_binary_chain.json
 ```
 
-Result after recheck: **64 tests passed**. Demo: synthetic 3×3, nine accepted
-deductions, 36 SAT calls, SOLVED. The count includes a consistency check after
-each reveal. The demo uses an exhaustive test oracle, not DPLL.
+The game itself uses the standard library. The full test suite needs pytest;
+it includes main's function tests/fixtures and the Agent's unittest classes.
+`unittest discover` alone does not validate the production suite. If this local
+environment lacks pip, first run `.\.venv\Scripts\python.exe -m ensurepip --upgrade`.
 
-Regression tests cover invalid SAT models, violated query assumptions, reused
-mutable solver results, completed-board inconsistencies, extra/missing/mismatched
-revealed clues, and immediate contradiction detection at a step limit. An invalid
-engine update prevents further play until restart.
+## Contracts to verify
 
-The bounded truth-table tests independently compare all small formulas of up to
-two clauses over three variables, including an auxiliary variable and permuted
-variable mappings: 758 formula/mapping cases and 6,822 public-verdict states.
+- Main's public import paths resolve to the same GameController implementation.
+- Clue/RegionSpec/Puzzle parsers and player metadata remain available.
+- Existing CNF and DPLL result objects are accepted without schema changes.
+- The default initial 3x3 auto-step uses exactly three SAT calls, preserving main.
+- Optional `check_revealed_consistency=True` adds one immediate KB query per
+  accepted reveal; strict-mode demo counters must be compared within that mode.
+- Existing 3x3, 4x4 and 5x5 reveal sequences, uniqueness, no-secret-information
+  behavior, CLI, web API, experiment runner and all original main tests remain valid.
+- Agent regression tests reject invalid SAT models and malformed Engine reveals,
+  preserve prior facts, isolate assumptions and stop safely on inconsistent KBs.
 
-## Separate compatibility check with real DPLL
+The bounded truth-table tests compare 758 formula/mapping cases and 6,822
+public-verdict states against independently evaluated truth tables. These are
+bounded correctness checks, not a general proof of Encoder or DPLL correctness.
 
-Our `agent.py`, `controller.py`, and `contracts.py` were tested with the real
-encoder, DPLL, engine, and four puzzle fixtures from
+The synthetic `examples.agent_demo` uses an exhaustive test oracle and fixture
+Encoder/Engine, with immediate post-reveal consistency checks enabled. Its
+verified result is nine accepted moves, 36 SAT calls and SOLVED. Real puzzle
+integration uses the production modules from main, not the test oracle. A real
+3x3 CLI solve also passed: eight accepted moves, 24 SAT calls and SOLVED;
+the strict integration example passed one accepted move with four SAT calls
+and STEP_LIMIT when run with `--max-steps 1`.
+
+## Historical evidence
+
+Before main was integrated, the isolated Agent suite passed 64 unittest methods
+and a temporary reference harness solved four 3x3/4x4 puzzles from
 [reference commit 587b04c](https://github.com/hyt2434/Griductive-Solver/tree/587b04cbd56ab2f2835e9ce905e6c98ff5817187).
-
-- `3x3_binary_chain` and `3x3_counting_chain`: unique; SOLVED; eight accepted
-  deductions and eight traces each (one initial card was already revealed).
-- `4x4_easy_training` and `4x4_medium_links`: unique; SOLVED; fifteen accepted
-  deductions and fifteen traces each (one initial card was already revealed).
-- Hint left state unchanged. Unknown and contradicted submissions did not reveal
-  clues. Inconsistency was detected even for a previously proved cell.
-
-The temporary harness is outside this checkout at
-`E:\FAI 2\tmp\reference-compat\run_compat.py`. The only upstream adaptation was
-adding the controller's `RunStatus` enum to temporary upstream models.
-Reference production code has not been included in this branch. These checks
-verify interface compatibility; they are not benchmarks of the team's future
-implementation, nor validation of the teammates' as-yet-unwritten modules.
+That earlier check did not validate the team's current web/CLI/5x5 application.
+It is retained only as historical context; the current full suite is the acceptance
+check. Existing reports and benchmark files from main are retained and are not
+presented as new measurements of this compatibility update.

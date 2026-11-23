@@ -1,75 +1,189 @@
-# Griductive Solver — Logic Agent & Integration
+# Griductive Solver · Football Mystery
 
-Team repository: https://github.com/kitchauhcmus/griductive-solver
+A playable, no-guess implementation of Griductive for CSC14003 Project 2. The
+application represents revealed clues in propositional logic, converts them to
+CNF, and proves verdicts with a DPLL SAT solver implemented in this repository.
 
-This branch implements the **Logic Agent và tích hợp** role for the five-person
-team. The repository was empty when work began. The engine, clue encoder, DPLL,
-and GUI are separate teammates' modules; they are not implemented by this branch.
+## Features
 
-The package layout and public API names follow
-[hyt2434/Griductive-Solver](https://github.com/hyt2434/Griductive-Solver/tree/587b04cbd56ab2f2835e9ce905e6c98ff5817187).
-The implementation here is original; the reference's application, report, data,
-and assets have not been copied into this repository.
+- Local browser tactics board with FC-style shield cards, player portraits, pitch
+  and roster views, public clue inspection, deduction trace and live SAT telemetry.
+- Fixed 25-player master roster. The standard and diagnostic boards use the
+  same size-specific squad in alphabetical, row-major order.
+- Manual `CRIMINAL` / `INNOCENT` calls with distinct `NOT_PROVABLE` and
+  `CONTRADICTED` responses.
+- Clickable clues that highlight referenced or counted cells.
+- Load, Restart, Hint and animated Auto Solve controls.
+- Strict separation between the secret-owning `GameEngine` and the
+  public-state-only `LogicAgent`.
+- Six required clue templates: `FACT`, `SAME`, `DIFFERENT`, `EXACTLY`,
+  `AT_LEAST`, and `AT_MOST`.
+- Extended constraints: `PARITY`, `COUNT_COMPARE`, `ALL_OF`, `CONNECTED`,
+  `CONNECTED_COUNT`, `INCLUDED_COUNT`, `OVERLAP_COUNT`, `GROUP_MOST`, and
+  `GROUP_ONLY`.
+- Criminal or Innocent counting through the reusable `target_status` selector.
+- Composable regions: row, column, neighbors, explicit list, whole grid,
+  corners, edges, cells between two people, common neighbors, directional
+  cells, profession groups, intersections and unions.
+- Automatic CNF generation, deterministic variable mapping and clause counts.
+- Custom DPLL with unit propagation, conflicts, deterministic branching,
+  backtracking, complete models and runtime metrics.
+- Deduction trace, full-clue uniqueness checking and progressive-solvability
+  validation.
+- Five curated cases across the required experiment sizes: two 3x3 training
+  cases, two 4x4 cases, and the original-style 5x5 Deep Inference stress case.
 
-## Run locally
+## Run on Windows
 
-Start with the [VS Code run and debug guide](docs/VSCODE_GUIDE.md) for Testing
-view, F5, breakpoints, individual tests, and common setup errors. The workspace
-also provides **Agent: run all tests** and **Agent: run demo** under Run Task.
-
-Open `griductive-solver.code-workspace` in VS Code. Python 3.10+ is required.
-The agent and tests need no third-party packages. A local `.venv` has been
-created for this workspace. From the repository root on Windows:
+Extract the ZIP, open the folder containing `main.py` in VS Code and run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+python main.py
+```
+
+Python 3.11 or newer is recommended. The game uses the standard library and
+works offline. The launcher opens `http://127.0.0.1:8765/` in the default
+browser, or prints and opens another loopback URL if that port is occupied.
+Keep the Python terminal running while you play. If a tab disconnects, restart
+`python main.py` and use the URL printed in that terminal. Ctrl+C stops the
+server. For a specific case, run
+`python main.py puzzles/5x5_deep_inference.json`.
+
+Click a card or a roster row. The inspection panel shows its public metadata
+and either the two verdict buttons or the revealed clue and its region.
+Hint shows a forced move, Step plays it, and Auto solve advances until paused
+or until no move can be proved. Instant completes all currently forced moves.
+Check uniqueness inspects the full clue set as a separate administrative action.
+
+## Squads and portraits
+
+`griductive/roster.py` defines all 25 cards. Bundled puzzles select the squads
+with `"roster": "football"`. The 3×3 and 4×4 selections are fixed subsets.
+A 5×5 board starts at A1 Alisson and ends at E5 Vinicius. Legacy custom
+puzzles can still define their own cells, names and professions.
+
+Put portraits in `assets/players/` and refresh the board. The local endpoint
+`/assets/players/<slug>` resolves PNG, WebP, JPG and JPEG, in that order,
+regardless of filename casing. For example, `MESSI.PNG` overrides `messi.jpg`.
+Only available files are requested. A missing or undecodable image displays
+the player's club-coloured SVG kit. The full filename checklist is in
+`assets/players/README.txt`. See `assets/CREDITS.md` for photo sources and licenses.
+
+The Diagnostic puzzles group contains a 3×3 ambiguous case and a 3×3
+inconsistent case. Both intentionally stop with unresolved cards. These
+fixtures live under `puzzles/diagnostics/` outside the five-case benchmark.
+
+## CLI and experiments
+
+```bash
+python main.py solve puzzles/4x4_medium_links.json
+python main.py validate puzzles
+python main.py experiments --manifest experiments/puzzle_set.json --runs 5 --timeout 60 \
+  --csv results/benchmark_results.csv \
+  --json results/benchmark_results.json \
+  --markdown results/EXPERIMENTS.md
+```
+
+`validate` performs schema/semantic checks, verifies that the complete clue set
+has exactly one model, and confirms that the public reveal sequence can be
+solved without guessing. It returns a non-zero exit code when any of those
+conditions fails. `experiments` records every case, including `FAILED` and
+`TIMEOUT` outcomes; runtime columns contain the mean, minimum, maximum, and
+population standard deviation across completed runs. Use `--timeout 0` to
+disable the per-run timeout. The manifest locks the ordered comparison set so
+every run uses the same two 3x3, two 4x4, and one 5x5 stress case. The Markdown
+output is a report-ready table with an explicit failure/timeout section and
+environment metadata.
+
+## Tests
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest -q
+```
+
+The core encoding tests exhaustively enumerate every complete 2x2 assignment and
+compare each CNF encoding with its independent direct semantic evaluator. DPLL
+is also tested separately for SAT, UNSAT, assumptions and backtracking.
+
+## Project structure
+
+```text
+main.py                     GUI/CLI entry point
+griductive/models.py        Puzzle, public-state and verdict data models
+griductive/regions.py       Region resolution
+griductive/clues.py         Validation, semantics and descriptions
+griductive/cnf.py           Automatic CNF encoder
+griductive/dpll.py          Instrumented DPLL SAT solver
+griductive/agent.py         Entailment, hint and uniqueness logic
+griductive/engine.py        Secret engine and game controller
+griductive/gui.py           Browser launcher
+griductive/web/             Local HTTP server, public game API and web UI
+griductive/roster.py        Fixed master roster and board selections
+assets/players/             Local player photos and filename checklist
+griductive/cli.py           Validation and solver commands
+griductive/experiments.py   Reproducible benchmark runner
+puzzles/                    Structured JSON puzzle files
+tests/                      Unit and end-to-end tests
+```
+
+## Logical protocol
+
+For an unresolved cell `i`, Criminal is proved exactly when `KB & not Ci` is
+UNSAT; Innocent is proved exactly when `KB & Ci` is UNSAT. If both assumptions
+are satisfiable, the result is `UNKNOWN` and no card is revealed. The knowledge
+base contains only revealed clues and unit clauses for previously proved
+verdicts. Hidden labels and face-down clues never enter hint or deduction code.
+
+Cardinality constraints use a polynomial finite-state counter, allowing global
+counts on a 5x5 board without combinatorial clause growth. Parity, count
+comparison, and group ranking use truth-table blocking over their local groups.
+Connectivity uses a polynomial reachability encoding with deterministic
+auxiliary variables; auxiliary counts are reported separately from primary
+character variables.
+
+## Puzzle format
+
+Each JSON file specifies `size`, `solution`, `initially_revealed`, and one
+structured clue per cell. Optional `names` and `professions` maps customize the
+display. Cell order is row-major (`A1`, `B1`, ..., `A2`, ...). The bundled
+cases are `3x3_binary_chain.json`, `3x3_counting_chain.json`,
+`4x4_easy_training.json`, `4x4_medium_links.json`, and
+`5x5_deep_inference.json`. Rookie Training remains the default GUI puzzle.
+
+## Agent branch integration notes
+
+The team `main` branch is the API and application contract. Agent improvements
+retain its full puzzle models, player metadata, production modules, public
+imports and tests. `GameController` now has one implementation in
+`griductive/controller.py`, re-exported through `griductive.engine` and the
+package root so existing GUI, CLI and experiment imports keep working.
+
+The default Controller preserves main's three-query initial auto-step: one base
+SAT check and two opposite assumptions. To additionally check the new KB
+immediately after every accepted reveal, construct it with
+`check_revealed_consistency=True`; that adds one SAT call per accepted move.
+The standalone fixture demo enables this optional mode and uses an exhaustive
+test oracle, while the application uses the real CNF encoder and DPLL.
+
+Open `griductive-solver.code-workspace` in VS Code. On this Windows checkout,
+the explicit local interpreter avoids the Microsoft Store `python` alias:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m examples.agent_demo
+.\.venv\Scripts\python.exe -m examples.team_integration puzzles\3x3_binary_chain.json
 ```
 
-On another computer, create that environment first with your installed Python:
-`python -m venv .venv`. Using the environment's executable directly also works
-when the global `python` command points to the Windows Store alias.
+If the environment lacks pip, run
+`.\.venv\Scripts\python.exe -m ensurepip --upgrade` first. The complete test
+suite uses pytest, which runs both main's function tests/fixtures and the Agent's
+unittest classes. `unittest discover` alone omits the production function tests.
 
-The demo uses tiny synthetic clues and an **exhaustive test oracle, not DPLL**.
-It demonstrates the agent and reveal workflow while the other modules are being
-written. It is not the final game, GUI, or project benchmark.
-
-Once teammates add `griductive/cnf.py`, `griductive/dpll.py`, and the engine:
-
-```python
-from griductive.agent import LogicAgent
-from griductive.controller import GameController
-from griductive.engine import GameEngine  # supplied by the engine teammate
-
-controller = GameController(GameEngine.load("puzzles/your_puzzle.json"), LogicAgent())
-controller.auto_solve()
-print(controller.last_run_status.value)
-```
-
-The [team integration walkthrough](docs/TEAM_INTEGRATION.md) explains the
-contracts for all five roles. After those real modules exist, run
-`python -m examples.team_integration puzzles/your_puzzle.json` to exercise them
-and print the stop reason, metrics, and trace.
-
-## Files and ownership
-
-- `griductive/agent.py`: classifications, public KB, Hint, uniqueness, SAT metrics.
-- `griductive/controller.py`: move verification, reveal loop, restart, traces.
-- `griductive/models.py` and `contracts.py`: small shared public interfaces.
-- `tests/`: behavioral and integration tests with isolated test fixtures.
-- `examples/agent_demo.py`: executable agent demonstration.
-- `examples/team_integration.py`: entry point for the real team modules.
-- `docs/VSCODE_GUIDE.md`: run, test, and debug walkthrough.
-- `docs/TEAM_INTEGRATION.md`: step-by-step module connection guide in English.
-- `docs/AGENT_HANDOFF.md`: interfaces and the five-person integration agreement.
-- `docs/AGENT_REPORT.md`: detailed Vietnamese report source for the agent role.
-- `output/pdf/AGENT_REPORT.pdf`: formatted agent-role report.
-
-Controller code lives outside `engine.py` so the engine teammate can work there
-independently. No empty implementations of other teammates' modules are provided.
-Their normal package locations remain `griductive/cnf.py`, `dpll.py`, `clues.py`,
-`regions.py`, `engine.py`, `gui.py`, `cli.py`, and `experiments.py`, with root
-`main.py`, `puzzles/`, `assets/`, `experiments/`, and `results/` as needed.
-
-Read the handoff before changing shared types. Work on separate branches and
-review changes to `models.py` and `contracts.py` together before merging.
+- [VS Code guide](docs/VSCODE_GUIDE.md): running, testing and debugging.
+- [Team integration](docs/TEAM_INTEGRATION.md): concrete module connections and modes.
+- [Vietnamese handoff](docs/AGENT_HANDOFF.md): shared interfaces and ownership.
+- [Validation](docs/VALIDATION.md): current verification and its scope.
+- [Agent report source](docs/AGENT_REPORT.md) and
+  [formatted PDF](output/pdf/AGENT_REPORT.pdf): the Agent contribution.

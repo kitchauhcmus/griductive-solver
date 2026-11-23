@@ -9,9 +9,16 @@ from .models import (
 
 
 class GameController:
-    def __init__(self, engine: PublicEngine, agent: LogicAgent | None = None):
+    def __init__(self, engine: PublicEngine, agent: LogicAgent | None = None, *,
+                 check_revealed_consistency: bool = False):
+        """Keep main's three-query step by default; opt into a post-reveal query.
+
+        The engine and package re-export this class so CLI, web, and direct
+        controller imports all use the same implementation.
+        """
         self.engine = engine
         self.agent = agent if agent is not None else LogicAgent()
+        self.check_revealed_consistency = check_revealed_consistency
         self.trace: list[DeductionStep] = []
         self.last_run_status = RunStatus.READY
         self._engine_contract_failed = False
@@ -82,8 +89,11 @@ class GameController:
             verdict=status,
             revealed_clue=clue.id,
         ))
-        consistency = self.agent.check_consistency(updated)
-        if consistency.inconsistent:
+        inconsistent = (
+            self.check_revealed_consistency
+            and self.agent.check_consistency(updated).inconsistent
+        )
+        if inconsistent:
             self.last_run_status = RunStatus.INCONSISTENT
         else:
             self.last_run_status = RunStatus.SOLVED if self._complete(updated) else RunStatus.READY

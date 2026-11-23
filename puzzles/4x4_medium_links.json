@@ -1,0 +1,176 @@
+{
+  "roster": "football",
+  "title": "4x4 Intersecting Testimony",
+  "size": 4,
+  "solution": {
+    "A1": "CRIMINAL",
+    "B1": "CRIMINAL",
+    "C1": "INNOCENT",
+    "D1": "INNOCENT",
+    "A2": "CRIMINAL",
+    "B2": "INNOCENT",
+    "C2": "CRIMINAL",
+    "D2": "INNOCENT",
+    "A3": "INNOCENT",
+    "B3": "INNOCENT",
+    "C3": "INNOCENT",
+    "D3": "CRIMINAL",
+    "A4": "INNOCENT",
+    "B4": "CRIMINAL",
+    "C4": "INNOCENT",
+    "D4": "INNOCENT"
+  },
+  "initially_revealed": [
+    "A1"
+  ],
+  "clues": {
+    "A1": {
+      "type": "INCLUDED_COUNT",
+      "person": "A3",
+      "k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "A4"
+      }
+    },
+    "A3": {
+      "type": "OVERLAP_COUNT",
+      "k": 4,
+      "overlap_k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "D3"
+      },
+      "left": {
+        "type": "COMMON_NEIGHBORS",
+        "person": "D3",
+        "other": "C2"
+      }
+    },
+    "D2": {
+      "type": "OVERLAP_COUNT",
+      "k": 2,
+      "overlap_k": 1,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "D4"
+      },
+      "left": {
+        "type": "COMMON_NEIGHBORS",
+        "person": "D4",
+        "other": "C2"
+      }
+    },
+    "C4": {
+      "type": "INCLUDED_COUNT",
+      "person": "B3",
+      "k": 4,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "B2"
+      }
+    },
+    "B3": {
+      "type": "CONNECTED_COUNT",
+      "k": 2,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "COLUMN",
+        "column": "B"
+      }
+    },
+    "B1": {
+      "type": "EXACTLY",
+      "k": 5,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "NEIGHBORS",
+        "center": "C3"
+      }
+    },
+    "D3": {
+      "type": "EXACTLY",
+      "k": 6,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "UNION",
+        "regions": [
+          {
+            "type": "ROW",
+            "row": 3
+          },
+          {
+            "type": "ROW",
+            "row": 4
+          }
+        ]
+      }
+    },
+    "C2": {
+      "type": "COUNT_COMPARE",
+      "operator": "GT",
+      "left": {
+        "type": "NEIGHBORS",
+        "center": "B3"
+      },
+      "right": {
+        "type": "NEIGHBORS",
+        "center": "A1"
+      }
+    },
+    "B2": {
+      "type": "COUNT_COMPARE",
+      "operator": "EQ",
+      "left": {
+        "type": "NEIGHBORS",
+        "center": "C1"
+      },
+      "right": {
+        "type": "NEIGHBORS",
+        "center": "D2"
+      }
+    },
+    "A2": {
+      "type": "EXACTLY",
+      "k": 10,
+      "target_status": "INNOCENT",
+      "region": {
+        "type": "WHOLE_GRID"
+      }
+    },
+    "C1": {
+      "type": "SAME",
+      "person": "C1",
+      "other": "C3"
+    },
+    "D1": {
+      "type": "SAME",
+      "person": "D1",
+      "other": "D2"
+    },
+    "C3": {
+      "type": "SAME",
+      "person": "C3",
+      "other": "C4"
+    },
+    "A4": {
+      "type": "SAME",
+      "person": "A4",
+      "other": "C4"
+    },
+    "B4": {
+      "type": "DIFFERENT",
+      "person": "B4",
+      "other": "C4"
+    },
+    "D4": {
+      "type": "FACT",
+      "person": "A1",
+      "status": "CRIMINAL"
+    }
+  }
+}

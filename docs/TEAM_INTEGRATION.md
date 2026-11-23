@@ -1,232 +1,204 @@
 # Connect the five team modules
 
-The agent is already executable with the isolated test fixtures. To run a real
-puzzle, supply the team's Engine, CNF encoder, and DPLL implementation. The GUI
-then calls the controller. All teammates must import the shared `Status` and
-`PublicGameState` definitions from `griductive.models`; do not create another
-`Status` enum with the same names in a different module.
+The team's `main` branch is the integration contract. This checkout includes its
+real Engine, CNF encoder, DPLL, CLI, web interface, puzzles and production tests.
+Agent changes extend that application; they must preserve its shared models,
+package exports and existing call sites. The small synthetic demo remains a
+separate way to inspect agent behavior with an exhaustive test oracle.
 
-## 1 Agree on the shared data before combining files
+## 1. Preserve the shared schema and imports
 
-The current `models.Clue` is a typing Protocol requiring an `id`, not a concrete
-clue constructor. The clue/CNF teammate should implement a frozen clue dataclass
-and a parser, together with the engine teammate. For example, a FACT clue might
-have `id`, `type`, `person`, and `status`; the other clue types need their own
-fields. Keep their semantics in the encoder, not in the agent. This is why the
-agent can support new clue types without changing its deduction algorithm.
+Import `Status`, `CellInfo`, `Clue`, `RegionSpec`, `Puzzle` and `PublicGameState`
+from `griductive.models`. `Clue` and `RegionSpec` are concrete frozen
+dataclasses, with `from_dict` parsers; they are not typing Protocols. Keep every
+existing field and its defaults, including the player metadata on `CellInfo`
+(`slug`, `ovr`, `club`, `nation`, `tier`, `shirt_number`). The web API serializes
+these fields. Do not substitute a smaller agent-only model or a second enum.
 
-`CellInfo(id, name, profession, row, column)` contains only public information.
-Use stable unique IDs such as `A1`; do not silently rename them between modules.
-`PublicGameState(title, size, cells, revealed_clues, proved)` contains a tuple of
-cells, only face-up clues, and proved verdicts. `proved` maps cell IDs to the
-shared enum values. It is exposed as a read-only copy. Clue objects must also be
-immutable and equal by content across snapshots.
+`Puzzle` owns the full parsed puzzle, including secrets. `PublicGameState`
+contains only title, size, cells, revealed clues and proved verdicts. Its
+`proved` field remains a dictionary under the main contract. Engine returns a
+fresh dictionary in each snapshot; callers must treat snapshots as read-only.
+The Agent separately copies public containers before passing them to an Encoder.
+Neither a frozen dataclass nor a shallow copy makes every nested object immutable.
 
-`UNKNOWN` is `Classification.status is None`. It is not a third hidden label:
-every character is either criminal or innocent in a solution. `None` means that
-the available public knowledge cannot decide. An inconsistent KB also has
-`status=None`, so inspect `.inconsistent` first, or display `.label`.
+`UNKNOWN` is `Classification.status is None`, not a third solution label.
+Inspect `classification.inconsistent` before treating `None` as insufficient
+knowledge. `.label` is available for display. Hints examine unresolved cells in
+`(row, column, id)` order, matching the main puzzles' row-major cell order.
 
-## 2 CNF teammate supplies the encoder
+## 2. Connect the existing CNF encoder
 
-Place the implementation in `griductive/cnf.py` and expose:
-
-```python
-class CNFEncoder:
-    def __init__(self, size, cells): ...
-    def encode_public_state(self, state): ...
-    def encode_clues(self, clues): ...
-```
-
-Each encoding returns `CNFFormula(clauses, primary_variables,
-auxiliary_variables)` from `contracts.py`, or an object with those fields.
-This is an interface sketch, not code to paste as a finished encoder.
-
-A concrete formula result looks like:
+The production implementation is `griductive.cnf.CNFEncoder`:
 
 ```python
-from griductive.contracts import CNFFormula
-
-formula = CNFFormula(
-    clauses=((1,), (-1, 2)),
-    primary_variables={"A1": 1, "B1": 2},
-    auxiliary_variables={},
-)
+encoder = CNFEncoder(state.size, state.cells)
+formula = encoder.encode_public_state(state)
+full_formula = encoder.encode_clues(tuple(all_clues))
 ```
 
-That example expresses `A1` and `A1 implies B1`; the two-cell fragment illustrates
-the format rather than defining a complete board. The actual primary mapping
-must include every cell on the supplied board, including cells absent from
-clauses. Literals are signed nonzero integers. Positive means criminal; negative
-means innocent. Primary and auxiliary variable IDs must be positive and unique.
-The agent takes `variable_count` as the largest declared variable ID.
+Its result exposes `clauses`, `primary_variables` and `auxiliary_variables`.
+Main's `griductive.cnf.CNFFormula` remains valid; the Agent accepts that structure
+and normalizes it to its local contract container. Teammates need not replace
+their types with those in `contracts.py`.
 
-`encode_public_state` uses only `revealed_clues` and public `proved` values. The
-agent also adds any missing proved unit clauses. Do not encode each unopened
-card's clue or consult the hidden solution. `encode_clues` accepts exactly the
-clues supplied by its caller; it is also used for the separate uniqueness check.
+For example, `clauses=((1,), (-1, 2))` means `A1` and `A1 implies B1` when
+the mapping is `{"A1": 1, "B1": 2}`. This two-cell fragment illustrates the
+format; the real mapping must include every cell on the board. All declared
+variable IDs must be distinct positive integers; literals are nonzero signed
+IDs. Positive means criminal and negative means innocent. Main generates dense
+IDs, while the Agent also supports sparse IDs by taking the largest declared ID
+as the solver's `variable_count`.
 
-## 3 DPLL teammate supplies the solver
+`encode_public_state` must use only revealed clues and proved verdicts. The
+Agent additionally inserts any missing proved unit clauses. `encode_clues`
+encodes the supplied clue set for the separate administrative uniqueness check.
+Do not pass unopened clues or the hidden solution to gameplay deduction.
 
-Place `DPLLSolver` in `griductive/dpll.py` with this call:
+## 3. Connect the existing DPLL solver
+
+The production implementation is `griductive.dpll.DPLLSolver`:
 
 ```python
 result = solver.solve(clauses, variable_count, assumptions=())
 ```
 
-The result needs `satisfiable` as an actual Python bool, `assignment` as a mapping
-from variable ID to bool for SAT or `None` for UNSAT, and `metrics`. Use the
-`SATResult` and `SolverMetrics` classes in `contracts.py`, or compatible types.
-Metrics must contain `decisions`, `propagations`, `conflicts`, `backtracks`,
-`recursive_calls`, and `runtime_ms`.
+Main's `SATResult` and `SolverMetrics` types are structurally compatible with
+the Agent. The result supplies a real Boolean `satisfiable`, a complete Boolean
+`assignment` for SAT or `None` for UNSAT, and `metrics` containing `decisions`,
+`propagations`, `conflicts`, `backtracks`, `recursive_calls` and `runtime_ms`.
+The Agent's aggregate remains a dataclass usable with both `vars()` and
+`dataclasses.asdict()`, as required by the CLI and web serializers.
 
-An assumption `(3,)` temporarily asserts variable 3; `(-3,)` temporarily asserts
-its negation. These are different calls, never both assumptions together during
-classification. The solver may implement assumptions by adding temporary unit
-clauses to its working copy. It must discard them before the next call. The
-agent supplies fresh clause lists and snapshots returned results.
+`assumptions=(3,)` temporarily asserts variable 3; `(-3,)` asserts its negation.
+They are separate classification queries. Assumptions must not leak into later
+calls. The Agent supplies fresh clause lists, verifies returned SAT models
+against the original clauses and assumptions, and copies returned metrics/models.
+Errors and timeouts must raise exceptions rather than masquerading as UNSAT.
+Model validation cannot certify UNSAT; retain the independent DPLL tests.
 
-SAT must include all declared primary and auxiliary variables, with real bool
-values rather than integers 0 and 1. Agent checks that the model satisfies both
-the clauses and current assumptions. A timeout or implementation error must
-raise an exception; returning `False` would incorrectly claim a proof of UNSAT.
-This model validation cannot certify an UNSAT answer, so independent DPLL tests
-are still required.
+## 4. Keep Engine and Controller entry points compatible
 
-## 4 Engine teammate supplies hidden state and atomic reveal
-
-Place `GameEngine` in `griductive/engine.py`. It owns puzzle loading, the hidden
-solution and unopened clues, initial public facts, and restart. Provide:
+The existing `GameEngine` remains in `griductive.engine`. It owns secrets,
+loading, initial public facts and restart, and exposes:
 
 ```python
 engine = GameEngine.load(path)
 state = engine.public_state
-is_finished = engine.solved
+finished = engine.solved
 engine.restart()
-new_clue = engine.reveal_after_proof(cell_id, status)
+clue = engine.reveal_after_proof(cell_id, status)
 ```
 
-`load` is the convention used by the supplied integration example. If the team
-chooses another constructor, change that one line in the example. The controller
-itself only requires the engine instance's public interface.
+The Controller calls `reveal_after_proof` only after obtaining a forced verdict.
+For a new accepted card, Engine must preserve the board and earlier public
+facts, record exactly one new verdict, publish exactly one new clue ID, and
+return that published clue. A mismatch must raise before mutating state. The
+Controller validates the returned update and blocks further play until restart
+if it detects a malformed update; it cannot roll back private Engine state.
 
-For a successful reveal, keep board metadata and earlier public facts unchanged,
-record exactly one new proved cell, and publish exactly one new clue with a unique
-ID. Return the same clue content that appears in the new snapshot. If the hidden
-label disagrees with the proved verdict, raise before changing state: that means
-the puzzle or one of the logic modules is invalid.
+There is one Controller implementation, in `griductive.controller`.
+`griductive.engine` re-exports it to preserve main's imports. The GUI, CLI,
+experiments and existing tests can continue using:
 
-Only the controller calls `reveal_after_proof`. The method is an internal
-capability and is not itself a proof checker. If a GUI called it directly, it
-could bypass the agent's no-guess rule. If the controller detects an invalid
-returned reveal state, it raises and refuses further operations until restart. It cannot
-roll back a private engine implementation it does not own.
+```python
+from griductive.engine import GameController, GameEngine
+```
 
-Keep Engine independent of the controller to avoid circular imports. Import
-`GameController` from `griductive.controller` in the GUI. A compatibility
-re-export from `engine.py` is optional; do not implement a second controller.
+`from griductive.controller import GameController` and the package-level exports
+refer to the same class. Do not keep a second Controller with different behavior.
 
-## 5 Wire the three components together
+## 5. Wire the real components
 
 ```python
 from griductive.agent import LogicAgent
-from griductive.controller import GameController
 from griductive.cnf import CNFEncoder
 from griductive.dpll import DPLLSolver
-from griductive.engine import GameEngine
+from griductive.engine import GameController, GameEngine
 
-engine = GameEngine.load("puzzles/your_puzzle.json")
+engine = GameEngine.load("puzzles/3x3_binary_chain.json")
 agent = LogicAgent(solver=DPLLSolver(), encoder_factory=CNFEncoder)
 controller = GameController(engine, agent)
+controller.auto_solve()
 ```
 
-Dependency injection means the agent receives the solver object and encoder
-constructor explicitly. Pass `CNFEncoder`, not `CNFEncoder()`: the agent creates
-it using each public state's size and cells. The shorter `LogicAgent()` lazily
-imports the same conventional modules. Its constructor succeeding does not mean
-those dependencies have been installed; they are used on the first query.
+Pass `CNFEncoder`, not `CNFEncoder()`: the Agent creates an Encoder with the
+current board's size and cells. The shorter `LogicAgent()` lazily loads the
+same production modules. Explicit injection remains useful for isolated tests.
 
-The runnable example is `examples/team_integration.py`. Once the real modules
-and a team puzzle exist, run from the repository root:
-
-```powershell
-.\.venv\Scripts\python.exe -m examples.team_integration puzzles\your_puzzle.json
-.\.venv\Scripts\python.exe -m examples.team_integration puzzles\your_puzzle.json --max-steps 1
-```
-
-It prints a JSON stop reason, accepted moves, SAT metrics, and deduction trace.
-The current agent-only checkout intentionally reports missing team modules.
-It never substitutes the exhaustive test oracle for DPLL.
-
-## 6 GUI teammate calls the controller
-
-For a manual move, call `controller.submit(cell_id, Status.CRIMINAL)` or
-`Status.INNOCENT`. Show the returned `Submission.message` and inspect `.result`.
-`NOT_PROVABLE` means both labels remain possible; `CONTRADICTED` means the opposite
-label is forced. Neither opens a card. `INCONSISTENT` means the current KB has no
-model. `ALREADY_SOLVED` means the cell was already proved.
-
-For Hint, call `controller.hint()`. `None` means no suggestion; inspect
-`last_run_status` to distinguish completion from being stuck. A returned pair is
-`(cell_id, classification)`. If `classification.inconsistent` is true, show the
-error rather than highlighting it as a valid move. A normal hint can highlight
-the cell but must not flip it. Hint increments SAT statistics because it runs
-queries, even though it leaves game state and accepted-move trace unchanged.
-
-For Auto Solve, call `controller.auto_step()` once per GUI timer tick. Redraw
-from `engine.public_state` after each call. Stop scheduling ticks when the result
-is `None` or when `last_run_status` is `SOLVED`, `STUCK`, or `INCONSISTENT`.
-`READY` means the last operation permits more work; it does not guarantee another
-forced cell exists. Cancel the timer before Restart or loading another puzzle.
-Avoid running long SAT work on the GUI thread; a background worker can run a
-single controller operation, with results marshalled back to the UI. Do not call
-controller operations concurrently or restart while a worker is still running.
-
-`controller.auto_solve(max_steps=...)` is convenient for command-line runs and
-tests. The optional step limit counts accepted moves, not SAT calls or seconds.
-Hitting it on a consistent, unfinished board gives `STEP_LIMIT`. Completion or
-a contradiction discovered by the last reveal takes precedence. A move can
-legitimately return `ACCEPTED` while the new state
-is `INCONSISTENT`: its proof was valid before the new clue was opened. The GUI
-must inspect both the move result and the resulting run status.
-
-For Restart, call `controller.restart()`, which resets the engine, trace, metrics,
-query log, and controller guard. For Load, construct a new engine and controller.
-Handle exceptions separately from logical rejection results. In particular,
-model errors and engine contract failures are defects, not evidence of UNKNOWN.
-
-## 7 Keep complete-clue validation separate from playing
-
-The engine/data owner may expose a separate administrative method returning all
-clues for puzzle validation. Never invoke it from normal Hint or Auto Solve.
+Main-compatible behavior is the default: an immediately forced `auto_step`
+uses one base SAT check and two assumption checks. It reuses the hint proof.
+To additionally check the new KB immediately after each reveal, opt in:
 
 ```python
-validator = LogicAgent(solver=DPLLSolver(), encoder_factory=CNFEncoder)
-sat, unique = validator.check_uniqueness(public_metadata, all_clues)
+controller = GameController(engine, agent, check_revealed_consistency=True)
 ```
 
-Here `public_metadata` supplies title, size, and cells; the method deliberately
-excludes its current `proved` and `revealed_clues`. `all_clues` must actually be the
-complete set supplied by the data owner. Use a separate validator instance to
-keep validation counters apart from gameplay counters. If initial labels or
-global rules are puzzle axioms, include them explicitly in the validation clue
-set: the agent does not infer missing axioms from the hidden solution.
+This adds one SAT call per accepted reveal. In strict mode an accepted move may
+return `ACCEPTED` while `last_run_status` becomes `INCONSISTENT`, because the
+new clue contradicts the previously consistent knowledge. In default mode that
+extra immediate check is omitted to preserve main's established query count;
+subsequent deduction or an explicit consistency check can detect the contradiction.
+Do not compare counters across modes as if the query workload were identical.
 
-## 8 Integrate incrementally and keep file ownership clear
+The real-module example can be run from the repository root:
 
-1. Agree on shared cell IDs, the `Status` enum, concrete clue dataclasses, and
-   result signatures. Engine/CNF teammates own that schema together.
-2. The DPLL teammate checks simple SAT/UNSAT and assumptions independently. The
-   CNF teammate compares encoded clues with direct semantics independently.
-3. Run the existing 64 agent tests; these isolate agent behavior with test
-   fixtures and do not automatically validate new production modules.
-4. Run the team integration example on actual 3×3 and 4×4 JSON puzzles, including
-   unknown, contradicted, and inconsistent cases. Verify the trace and reveals.
-5. Connect the GUI after the command-line flow works. Capture team benchmark
-   metrics from production DPLL, not from `tests/support.py`.
+```powershell
+.\.venv\Scripts\python.exe -m examples.team_integration puzzles\3x3_binary_chain.json
+.\.venv\Scripts\python.exe -m examples.team_integration puzzles\3x3_binary_chain.json --max-steps 1
+```
 
-The agent owner edits `agent.py`, `controller.py`, their tests, and this handoff.
-Engine/data edits `engine.py` and `puzzles/`; CNF edits `cnf.py`, `clues.py`, and
-`regions.py`; DPLL edits `dpll.py`; GUI/video edits `gui.py` and GUI assets.
-Review changes to `models.py` and `contracts.py` together. The examples and
-instructions here do not commit or push files to GitHub.
+It prints a JSON stop reason, accepted moves, SAT metrics and trace. The separate
+`examples.agent_demo` deliberately uses fixtures and opts into immediate
+post-reveal consistency checks; it is not a DPLL benchmark.
+
+## 6. Connect GUI actions
+
+Manual verdicts call `controller.submit(cell_id, Status.CRIMINAL)` or
+`Status.INNOCENT`. Show the returned message and inspect `Submission.result`.
+`NOT_PROVABLE` means both labels remain possible; `CONTRADICTED` means the
+opposite is forced. Neither opens a card. `INCONSISTENT` means no public model
+exists; `ALREADY_SOLVED` means the card was already proved.
+
+`controller.hint()` returns `(cell_id, classification)` or `None`. A hint can
+highlight a cell but does not reveal it. Inspect `.inconsistent` before treating
+the returned pair as a valid move. Hint changes Agent counters, not game state
+or accepted-move trace. `last_run_status` distinguishes `SOLVED`, `STUCK`,
+`INCONSISTENT` and `READY`; `READY` does not promise that another forced cell exists.
+
+Use `controller.auto_step()` to reveal at most one card per UI update.
+`auto_solve(max_steps=...)` is convenient for CLI/tests; the limit counts accepted
+moves in that call, not SAT queries or elapsed seconds. Stop on `None` or a
+terminal run status. Restart resets Engine, trace, statistics, query log and
+the invalid-update guard. Load constructs a new Engine and Controller.
+
+Main's web Match already serializes operations with a lock. Preserve that
+coordination. If adding background work, do not overlap Controller operations
+or restart while a query is running. A timer alone does not make long SAT work
+nonblocking. Handle solver/engine exceptions separately from logical rejections.
+
+## 7. Keep validation separate from playing
+
+Only administrative code may call
+`engine.all_clues_for_validation()` and
+`agent.check_uniqueness(public_metadata, all_clues)`. The latter deliberately
+excludes current `proved` and `revealed_clues`, blocks only primary-variable
+assignments, and never feeds the complete-clue model into Hint. If initial labels
+or global rules are puzzle axioms, explicitly include them in the full validation
+constraints. Use a separate Agent or reset counters when measuring gameplay.
+
+## 8. Verify all contracts before merging
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m examples.agent_demo
+.\.venv\Scripts\python.exe main.py validate puzzles
+```
+
+The full pytest run includes main's function tests/fixtures and the Agent's
+unittest classes. `unittest discover` alone does not execute the full production
+suite. Preserve existing tests, including the three-call auto-step contract,
+expected reveal sequences, public-information isolation, CLI and web API tests.
+Do not copy the test oracle into production or overwrite shared types to match a
+fixture. Treat `main` as the authority when updating module ownership or imports.

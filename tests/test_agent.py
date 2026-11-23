@@ -64,16 +64,15 @@ class ClassificationTests(unittest.TestCase):
 
     def test_public_snapshot_and_cnf_are_not_mutated(self):
         agent = make_agent()
-        proved = {"A1": Status.CRIMINAL}
-        state = make_state((-1, 2), proved=proved)
+        state = make_state((-1, 2), proved={"A1": Status.CRIMINAL})
         initial_clues = state.revealed_clues
-        proved["A1"] = Status.INNOCENT
-        self.assertIs(state.proved["A1"], Status.CRIMINAL)
+        initial_proved = dict(state.proved)
         agent.classify_all(state)
         self.assertEqual(state.revealed_clues, initial_clues)
-        self.assertEqual(dict(state.proved), {"A1": Status.CRIMINAL})
-        with self.assertRaises(TypeError):
-            state.proved["B1"] = Status.CRIMINAL
+        self.assertEqual(state.proved, initial_proved)
+        # Main's public schema deliberately exposes a JSON-friendly dict. The
+        # agent must not mutate it; it does not promise a read-only container.
+        self.assertIsInstance(state.proved, dict)
 
     def test_solver_in_place_work_cannot_corrupt_saved_formula(self):
         class MutatingSolver(ExhaustiveSolver):

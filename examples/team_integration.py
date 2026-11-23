@@ -37,7 +37,7 @@ def main() -> None:
 
     engine = GameEngine.load(args.puzzle)
     agent = LogicAgent(solver=DPLLSolver(), encoder_factory=CNFEncoder)
-    controller = GameController(engine, agent)
+    controller = GameController(engine, agent, check_revealed_consistency=True)
     accepted = controller.auto_solve(max_steps=args.max_steps)
     print(json.dumps({
         "stop_reason": controller.last_run_status.value,

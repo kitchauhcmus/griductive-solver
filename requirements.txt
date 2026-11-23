@@ -1,2 +1,2 @@
-# The agent and its tests use only the Python standard library.
-# GUI dependencies are owned by the GUI teammate.
+# The game uses only the Python standard library. Test dependency:
+pytest>=8.0,<9

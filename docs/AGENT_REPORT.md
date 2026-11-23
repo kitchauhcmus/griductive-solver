@@ -1,6 +1,6 @@
 # Báo cáo chuyên đề: Logic Agent và tích hợp trong Griductive Solver
 
-**Ngày cập nhật: 22/11/2026.** Tài liệu trình bày phần việc của vai trò
+**Ngày cập nhật: 23/11/2026.** Tài liệu trình bày phần việc của vai trò
 **Logic Agent và tích hợp** trong nhóm năm người. Nội dung mô tả mã hiện có,
 cơ sở thuật toán, bằng chứng kiểm chứng và các giới hạn của phần bàn giao.
 Hướng dẫn cài đặt, chạy chương trình và thao tác VS Code nằm trong `README.md`;
@@ -19,15 +19,18 @@ khiển quá trình nhận manh mối mới sau mỗi kết luận hợp lệ.
 Phân công năm người chia các phần thành Engine và dữ liệu; Agent và tích hợp;
 biểu diễn clue và CNF; DPLL; GUI và video. Phần này thực hiện `agent.py`,
 `controller.py`, các giao diện công khai, kiểm thử và tài liệu liên quan.
-Controller được đặt trong file riêng để thành viên làm `engine.py` có thể
-phát triển độc lập. Thực nghiệm toàn hệ thống và ghép báo cáo vẫn cần sự phối
+Controller được đặt trong file riêng và được `engine.py` xuất lại dưới cùng
+tên `GameController`; các lệnh CLI, web và import cũ dùng chung một lớp.
+Hợp đồng tích hợp hiện tại lấy từ nhánh `main` của repo nhóm tại commit
+`d946dd1e3c9dab194b3931d71957ab226c2a270a`, ưu tiên hơn cấu trúc tham khảo. Thực nghiệm toàn hệ thống và ghép báo cáo vẫn cần sự phối
 hợp của nhóm; tài liệu này không tự xác nhận phần việc của bốn thành viên khác.
 
 Sản phẩm của vai trò gồm phân loại ba trạng thái, kiểm tra lượt chơi, Hint,
 giải tuần tự không đoán, trace, thống kê lời gọi SAT và kiểm định nghiệm duy
-nhất. Bản bàn giao không chứa GUI hoàn chỉnh, bộ dữ liệu puzzle của nhóm,
-encoder sáu loại clue hay DPLL sản phẩm. Những thành phần đó được kết nối qua
-hợp đồng rõ ràng; oracle vét cạn trong test chỉ phục vụ kiểm chứng agent.
+nhất. Checkout đã tích hợp các module Engine, CNF, DPLL, CLI, web GUI và dữ
+liệu hiện có trên `main`; những phần đó được giữ từ công việc của nhóm,
+không được tính là đóng góp mới của vai trò Agent. Oracle vét cạn trong test
+vẫn chỉ phục vụ kiểm chứng Agent, tách biệt với DPLL thật.
 
 ## 2. Mô hình tri thức và ranh giới dữ liệu
 
@@ -62,9 +65,11 @@ tra rằng thay dữ liệu ẩn mà giữ nguyên snapshot không làm đổi H
 
 `build_kb` sao chép phần chứa dữ liệu công khai, gọi encoder rồi thêm unit
 clauses của `proved` nếu chưa có. Hàm kiểm tra ID ô, ánh xạ đủ biến chính,
-biến chính/phụ không trùng và literal tham chiếu đúng biến. `proved` là mapping
-chỉ đọc. Clue cụ thể do thành viên CNF cung cấp phải bất biến và so sánh được
-theo nội dung; việc đóng băng container không tự đóng băng mọi đối tượng clue.
+biến chính/phụ không trùng và literal tham chiếu đúng biến. Theo hợp đồng
+`main`, `proved` là dictionary có thể chuyển sang JSON, không phải mapping
+chỉ đọc. Engine trả bản sao dictionary và Agent tiếp tục sao chép container
+trước khi mã hóa. Các lớp cụ thể `Clue`, `RegionSpec`, `Puzzle` cùng metadata
+cầu thủ của `CellInfo` được giữ nguyên; clue bất biến và so sánh theo nội dung.
 
 ## 3. Suy diễn bằng SAT và nguyên tắc không đoán
 
@@ -188,6 +193,11 @@ trace, nhưng chưa tối ưu số truy vấn hoặc lượng thông tin của c
 
 ## 6. Ví dụ suy luận và mở clue đầy đủ
 
+Ví dụ mục này bật `check_revealed_consistency=True` để kiểm tra KB ngay
+sau mỗi reveal. Mặc định tham số là `False`, giữ đúng ba SAT calls cho
+một bước đầu tiên theo test của `main`; chi phí và thời điểm kiểm tra khác
+nhau cần được ghi rõ khi so sánh.
+
 Xét mô hình giảng giải bốn ô `A1, B1, A2, B2`; đây là ví dụ nhỏ, không thay
 thế yêu cầu kiểm thử puzzle 3×3 và 4×4. Đặt lần lượt các biến `p,q,r,s`.
 Ánh xạ số nguyên là `A1→1`, `B1→2`, `A2→3`, `B2→4`; chẳng hạn
@@ -259,10 +269,13 @@ exception và chặn lượt tiếp theo đến khi restart. Nó không tự ho�
 liệu riêng bên trong Engine. Engine phải bảo đảm thao tác nguyên tử: khi
 tự phát hiện lỗi, trạng thái giữ nguyên. Exception do chính Engine hoặc
 solver phát sinh được truyền lên caller, không tự kích hoạt cơ chế chặn này.
-Với reveal hợp lệ, controller ghi trace rồi gọi
-`check_consistency` trên snapshot mới ngay, bao gồm cả bước cuối và bước
-vừa chạm giới hạn. Vì thế clue mới gây mâu thuẫn không bị che bởi SOLVED
-hoặc STEP_LIMIT.
+Với reveal hợp lệ, controller ghi trace. Khi bật
+`check_revealed_consistency=True`, nó gọi `check_consistency` trên snapshot
+mới ngay, kể cả bước cuối và bước chạm giới hạn. Khi dùng mặc định `False`,
+không có query sau reveal; KB mới được kiểm tra ở thao tác suy luận tiếp
+theo. Nếu lượt cuối đã giải xong hoặc vừa đạt giới hạn, mặc định không bảo
+đảm phát hiện ngay mâu thuẫn từ clue mới. Đây là lựa chọn giữ hợp đồng chi
+phí của `main`, không được mô tả như bảo đảm của chế độ kiểm tra chặt hơn.
 
 `auto_step` mở tối đa một thẻ. `auto_solve` lặp bước này cho đến SOLVED,
 STUCK, INCONSISTENT hoặc giới hạn số bước được chấp nhận. `max_steps=0`
@@ -282,7 +295,7 @@ AUTO_SOLVE(limit):
         nếu mọi ô đã proved:
             HINT(state) để cập nhật SOLVED hoặc INCONSISTENT; dừng
         nếu đã nhận đủ limit bước: đặt STEP_LIMIT; dừng
-        result ← AUTO_STEP()  # Hint, chứng minh, reveal, kiểm tra KB mới
+        result ← AUTO_STEP()  # Hint, chứng minh, reveal; kiểm tra mới nếu đã bật
         nếu result là None: dừng
         thêm result vào results
         nếu trạng thái khác READY: dừng
@@ -300,7 +313,7 @@ sau kết luận. Query của Hint còn chứa các ô UNKNOWN đã thử trư�
 có thể kiểm tra độc lập bằng một proof checker.
 
 `agent.query_log` chứa các truy vấn có kết quả hợp lệ, kể cả từ lượt bị
-từ chối và kiểm định uniqueness. Query kiểm tra sau reveal nằm trong log
+từ chối và kiểm định uniqueness. Query sau reveal nếu được bật nằm trong log
 và counters; nó không được ghép ngược vào bằng chứng của verdict trước.
 `AgentStats` cộng `sat_calls` và các trường solver: decisions, propagations,
 conflicts, backtracks, recursive_calls, runtime_ms. Restart xóa tiến trình,
@@ -387,8 +400,11 @@ forced, trạng thái STUCK không khẳng định puzzle vô nghiệm.
 Với n ô chưa giải và KB nhất quán, `classify_all` dùng `1+2n` query.
 Hint tìm thấy ô forced ở vị trí j dùng `1+2j`; không tìm thấy dùng `1+2n`.
 KB mâu thuẫn chỉ cần một query. Phân loại ô đã proved cần một query base.
-Reveal được chấp nhận thêm một query kiểm tra KB mới. Nếu mỗi bước đầu tiên
-đều forced, như demo chuỗi 3×3, chín verdict mới dùng 36 calls.
+Reveal được chấp nhận thêm một query kiểm tra KB mới khi bật tùy chọn
+`check_revealed_consistency=True`. Demo chuỗi 3×3 bật tùy chọn này nên chín
+verdict mới dùng 36 calls. Mặc định cùng chuỗi dùng 27 calls; mặc định trên
+puzzle thật 3×3 có một ô mở sẵn dùng 24 calls cho tám verdict mới. Không
+trộn số liệu giữa các chế độ.
 
 Trong trường hợp mỗi Hint quét nhiều ô, tổng số query của quá trình có thể
 tăng theo bậc hai số ô. Đây chỉ là số lần gọi SAT; chi phí từng lần DPLL có
@@ -399,8 +415,12 @@ pipeline cần bộ đếm thời gian riêng và tách pha uniqueness khỏi ph
 
 ## 11. Bằng chứng kiểm chứng
 
-Biên bản kiểm định hiện có ghi **64 test đạt**. Test dùng `unittest`,
-fixture Engine/CNF và oracle vét cạn cho công thức nhỏ. Các nhóm kiểm tra
+Bộ Agent ban đầu có **64 test đạt** với `unittest`, fixture Engine/CNF
+và oracle vét cạn cho công thức nhỏ. Kiểm định tích hợp hiện tại dùng
+`pytest tests -q` để thu thập cả test hàm của `main`, test Agent và test
+hợp đồng mới; **106 test đạt** trên Python 3.13.5, pytest 8.4.2; biên bản nằm trong
+`docs/VALIDATION.md`. Không
+dùng riêng unittest discover để khẳng định toàn bộ dự án đã được kiểm thử. Các nhóm kiểm tra
 bao gồm forced/UNKNOWN/INCONSISTENT, không mở thẻ khi từ chối, cô lập
 assumptions, Hint không đổi trạng thái, restart, trace, chuỗi reveal 3×3/4×4
 và điều kiện dừng. Regression còn bao phủ model SAT sai, thiếu biến phụ,
@@ -421,8 +441,9 @@ Engine và bốn fixture của repo tham khảo tại commit đã chốt. Hai fi
 `3x3_binary_chain`, `3x3_counting_chain` cho unique và SOLVED với tám verdict
 mới; hai fixture `4x4_easy_training`, `4x4_medium_links` cho unique và SOLVED
 với mười lăm verdict mới. Mỗi fixture đã có một ô mở ban đầu. Bằng chứng
-này kiểm tra khả năng tương thích API, không xác nhận module tương lai
-của đồng đội và không phải benchmark của nhóm. Chi tiết nằm trong
+này là bằng chứng tương thích API ở giai đoạn trước, không phải benchmark
+của nhóm. Kiểm định mới còn chạy trên module thật của `main`, bao gồm
+puzzle 5×5 và các bài test CLI/web/thực nghiệm đã có. Chi tiết nằm trong
 `docs/VALIDATION.md`; runtime oracle không được báo như runtime DPLL.
 
 ## 12. Giới hạn và công việc tích hợp còn lại
@@ -433,8 +454,10 @@ clauses ưu tiên tính cô lập trong tích hợp ban đầu. Tính đúng cu�
 phụ thuộc ngữ nghĩa encoder, solver UNSAT và dữ liệu Engine; model checker
 không phát hiện được mọi lỗi ở các thành phần đó.
 
-Nhóm cần tích hợp module sản phẩm, kiểm tra sáu clue và hai mở rộng, chạy
-puzzle 3×3/4×4 của nhóm, đo số liệu trên cùng cấu hình và lưu lỗi/timeout.
+Nhóm cần tiếp tục rà soát khi `main` thay đổi, đo lại số liệu trên cùng
+cấu hình và lưu lỗi/timeout. Bộ kiểm thử đã tích hợp dùng Engine/CNF/DPLL
+thật và giữ nguyên các test sản phẩm của `main`; các thay đổi của nhánh
+`cnf-improvements` không được tự coi là hợp đồng của lần kiểm định này.
 GUI, video, báo cáo tổng thể, thông tin thành viên và tỷ lệ đóng góp cần
 được nhóm xác nhận riêng. Tài liệu này không gán tên, MSSV, phần trăm hoàn
 thành hay kết quả thực nghiệm chưa có bằng chứng.
@@ -452,7 +475,9 @@ INCONSISTENT không có model cho chính KB. Hai trường hợp cần thông b�
 
 **Bước được ACCEPTED mà hệ thống INCONSISTENT có mâu thuẫn không?** Verdict
 được chứng minh từ KB trước. Clue vừa mở có thể làm KB sau mâu thuẫn;
-controller giữ trace bước đã hợp lệ và dừng để xử lý dữ liệu hoặc module.
+ở chế độ `check_revealed_consistency=True`, controller giữ trace bước đã
+hợp lệ và dừng để xử lý dữ liệu hoặc module. Mặc định việc phát hiện KB
+mới mâu thuẫn xảy ra ở lần suy luận sau, nếu có.
 
 **Vì sao uniqueness không dùng verdict đang chơi?** Các verdict có thể làm
 hẹp tập nghiệm, che giấu việc toàn bộ clue vốn chưa xác định duy nhất.
@@ -460,11 +485,12 @@ Kiểm định đầy đủ phải dựa vào đúng tập clue cần đánh gi�
 
 **Agent có tự viết DPLL không?** Phần này xây thuật toán suy diễn và tích
 hợp trên giao diện DPLL. Thành viên DPLL viết solver; oracle test độc lập
-giúp kiểm chứng agent trong lúc solver thật chưa được tích hợp.
+giúp kiểm chứng agent độc lập; kiểm thử tích hợp còn chạy với DPLL thật
+được giữ từ nhánh `main`.
 
 **Vì sao Hint rồi submit tăng SAT calls hai lần?** Không có cache kết quả.
 Submit chứng minh lại trên snapshot hiện tại; counters ghi đúng các lần
-chạy thực tế, bao gồm một query kiểm tra sau reveal được chấp nhận.
+chạy thực tế, bao gồm query kiểm tra sau reveal nếu tùy chọn đó được bật.
 
 ## 14. Nguồn tham chiếu và ghi nhận hỗ trợ
 
@@ -473,7 +499,9 @@ mục 4.1 và 4.4, cùng ảnh phân công nhóm năm người. Tên package, t�
 đối chiếu tương thích tham khảo
 [Griductive-Solver tại commit 587b04cbd56ab2f2835e9ce905e6c98ff5817187](https://github.com/hyt2434/Griductive-Solver/tree/587b04cbd56ab2f2835e9ce905e6c98ff5817187).
 Code nhánh agent được viết mới; ứng dụng, báo cáo và assets của repo tham
-khảo không được đưa vào phần bàn giao này.
+khảo không được sao chép trực tiếp vào phần Agent ban đầu. Checkout tích
+hợp hiện giữ các file ứng dụng, báo cáo và assets vốn có trên `main` của
+repo nhóm; chúng không phải phần tác giả Agent tự nhận đã viết.
 
 Codex hỗ trợ thiết kế giao diện, hiện thực agent/controller, xây kiểm thử,
 rà lỗi và soạn thảo tài liệu. Thành viên phụ trách cần đọc, chạy lại kiểm

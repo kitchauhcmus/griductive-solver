@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Griductive · Football Logic Puzzles</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+  <script type="module" src="/static/js/app.js"></script>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true">
+    <symbol id="i-pitch" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 5v14M3 9h3v6H3m18-6h-3v6h3"/><circle cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-13h-7z"/></symbol>
+    <symbol id="i-step" viewBox="0 0 24 24"><path d="m5 5 11 7-11 7zM19 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m6 4 13 8-13 8z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></symbol>
+    <symbol id="i-restart" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
+    <symbol id="i-hint" viewBox="0 0 24 24"><path d="M9 18h6m-5 3h4M8 14a7 7 0 1 1 8 0l-1 2H9z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.1M4 12h.1M4 18h.1"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 4v14h16M8 13l3-4 3 2 5-6"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-5 6 5 6m8-12 5 6-5 6m-3-15-2 18"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="m3 10 4 0 5-5v14l-5-5H3zM16 8q4 4 0 8m3-11q6 7 0 14"/></symbol>
+    <symbol id="i-muted" viewBox="0 0 24 24"><path d="m3 10 4 0 5-5v14l-5-5H3zM16 9l6 6m0-6-6 6"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m2 8 10-5 10 5-10 5zM3 13l9 5 9-5m-18 4 9 5 9-5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 4-5 7-8 9-3-2-8-5-8-9V6z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-var" viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/><path d="M8 12h2l2-4 2 8 2-4h1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12m0-12L6 18"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <header class="mast">
+      <div class="brand">
+        <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-pitch"/></svg></span>
+        <h1>Griductive</h1>
+        <span class="brand-edition">Football Logic Puzzles</span>
+      </div>
+      <div class="head-actions">
+        <label class="load">
+          <span>Load puzzle</span>
+          <select id="cases" aria-label="Load puzzle"></select>
+        </label>
+        <button id="view" class="mode-button" aria-pressed="false" title="Toggle 2.5D pitch">
+          <svg class="icon" aria-hidden="true"><use href="#i-layers"/></svg><span>2D Pitch</span>
+        </button>
+        <button id="sound" class="mode-button" aria-pressed="false" aria-label="Enable sound" title="Enable sound">
+          <svg class="icon" aria-hidden="true"><use href="#i-muted"/></svg><span>SFX</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="telemetry" id="metrics" aria-label="Solver telemetry"></section>
+
+    <main class="columns">
+      <section class="field-panel" aria-label="Tactical pitch">
+        <div class="toolbar">
+          <div class="tools">
+            <button id="auto" class="primary" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Auto solve</span></button>
+            <button id="step"><svg class="icon" aria-hidden="true"><use href="#i-step"/></svg>Step</button>
+            <button id="hint"><svg class="icon" aria-hidden="true"><use href="#i-hint"/></svg>Hint</button>
+          </div>
+          <p id="case-title" class="case-title"></p>
+          <div class="tools">
+            <button id="instant" title="Instant solve"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg><span>Instant</span></button>
+            <button id="restart" class="square" title="Restart puzzle" aria-label="Restart puzzle"><svg class="icon" aria-hidden="true"><use href="#i-restart"/></svg></button>
+          </div>
+        </div>
+
+        <div id="pitch" class="pitch" data-size="4">
+          <div id="pitch-stage" class="pitch-stage">
+            <div class="pitch-plane">
+              <div class="turf" aria-hidden="true">
+                <svg class="markings" viewBox="0 0 800 500" preserveAspectRatio="none">
+                  <g fill="none" stroke="currentColor">
+                    <rect x="20" y="19" width="760" height="462" rx="3"/>
+                    <path d="M400 19v462M20 119h116v262H20m760-262H664v262h116M20 184h42v132H20m760-132h-42v132h42"/>
+                    <ellipse cx="400" cy="250" rx="71" ry="71"/>
+                    <path d="M136 191.34A71 71 0 0 1 136 308.66M664 191.34A71 71 0 0 0 664 308.66"/>
+                    <path d="M20 31q12 0 12-12m736 0q0 12 12 12M20 469q12 0 12 12m736 0q0-12 12-12"/>
+                    <circle cx="400" cy="250" r="2" fill="currentColor"/>
+                    <circle cx="96" cy="250" r="2" fill="currentColor"/>
+                    <circle cx="704" cy="250" r="2" fill="currentColor"/>
+                  </g>
+                </svg>
+              </div>
+              <div class="floodlights" aria-hidden="true"></div>
+              <div class="light-dust" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="formation">
+                <div id="col-rail" class="col-rail" aria-hidden="true"></div>
+                <div id="row-rail" class="row-rail" aria-hidden="true"></div>
+                <svg id="lines" aria-hidden="true"><g></g></svg>
+                <div id="grid" class="grid" aria-label="Player cards"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="clue-dock">
+            <div id="pitch-clue" class="pitch-clue" hidden>
+              <svg class="icon" aria-hidden="true"><use href="#i-target"/></svg>
+              <div class="pitch-clue-source">
+                <span id="pitch-clue-label"></span>
+                <strong id="pitch-clue-owner"></strong>
+              </div>
+              <p id="pitch-clue-text" aria-live="polite"></p>
+              <button id="close-pitch-clue" class="square" type="button" aria-label="Dismiss clue" title="Dismiss clue">
+                <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="board-foot">
+          <div class="legend" aria-label="Card statuses">
+            <span><i class="dot UNKNOWN" aria-hidden="true"></i>Unknown</span>
+            <span><i class="dot INNOCENT" aria-hidden="true"></i>Innocent</span>
+            <span><i class="dot CRIMINAL" aria-hidden="true"></i>Criminal</span>
+          </div>
+          <a class="credit-link" href="/credits" target="_blank" rel="noopener">Photo credits ↗</a>
+          <label class="speed">Speed <input id="speed" type="range" min="1" max="5" value="3"></label>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="inspection" aria-labelledby="inspection-title">
+          <div class="section-title">
+            <h2 id="inspection-title"><svg class="icon" aria-hidden="true"><use href="#i-target"/></svg>Card inspector</h2>
+            <span id="inspector-cell" class="count" hidden></span>
+          </div>
+          <div id="inspection"></div>
+        </section>
+
+        <section class="sheet" aria-labelledby="sheet-title">
+          <div class="section-title">
+            <h2 id="sheet-title"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>Squad sheet</h2>
+            <span id="squad-count" class="count"></span>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Squad sheet views">
+            <button id="tab-squad" role="tab" aria-controls="sheet-body" aria-selected="true" data-tab="squad"><svg class="icon" aria-hidden="true"><use href="#i-list"/></svg>Roster</button>
+            <button id="tab-trace" role="tab" aria-controls="sheet-body" aria-selected="false" data-tab="trace" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-log"/></svg>Trace</button>
+            <button id="tab-kb" role="tab" aria-controls="sheet-body" aria-selected="false" data-tab="kb" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#i-code"/></svg>KB &amp; CNF</button>
+          </div>
+          <div id="sheet-body" class="sheet-body" role="tabpanel" aria-labelledby="tab-squad" tabindex="0"></div>
+          <div class="sheet-foot">
+            <button id="unique"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>Check uniqueness</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="clue-tooltip" class="clue-tooltip" role="tooltip" hidden>
+    <strong id="clue-tooltip-owner"></strong>
+    <p id="clue-tooltip-text"></p>
+  </div>
+
+  <div id="alert" role="status" aria-live="polite" hidden>
+    <span class="alert-icon"><svg class="icon" aria-hidden="true"><use href="#i-var"/></svg></span>
+    <div>
+      <strong id="alert-label"></strong>
+      <p id="alert-message"></p>
+      <small id="alert-details" hidden></small>
+    </div>
+    <button id="close-alert" class="square" aria-label="Dismiss notification"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+
+  <dialog id="review" aria-labelledby="review-title">
+    <h2 id="review-title">VAR review</h2>
+    <p id="review-result"></p>
+    <button autofocus id="close-review">Close</button>
+  </dialog>
+</body>
+</html>

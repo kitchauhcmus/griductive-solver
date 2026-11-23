@@ -11,7 +11,7 @@ from tests.support import EncodedClue, FixtureEngine, chain_fixture, make_agent,
 class RevealContractTests(unittest.TestCase):
     def assert_bad_reveal_rejected(self, engine_type):
         engine = engine_type(make_state((1,)), solution={"A1": Status.CRIMINAL})
-        controller = GameController(engine, make_agent())
+        controller = GameController(engine, make_agent(), check_revealed_consistency=True)
         with self.assertRaises(RuntimeError):
             controller.submit("A1", Status.CRIMINAL)
         self.assertEqual(controller.trace, [])
@@ -73,7 +73,7 @@ class RevealContractTests(unittest.TestCase):
                     solution={"A1": Status.CRIMINAL, "B1": Status.CRIMINAL},
                 )
                 initial = engine.public_state
-                controller = GameController(engine, make_agent())
+                controller = GameController(engine, make_agent(), check_revealed_consistency=True)
                 with self.assertRaises(RuntimeError):
                     controller.submit("A1", Status.CRIMINAL)
                 calls_after_failure = controller.agent.stats.sat_calls
@@ -93,7 +93,7 @@ class RevealedContradictionTests(unittest.TestCase):
     def controller_with_bad_first_clue():
         engine = chain_fixture(2)
         engine._hidden_clues["A1"] = EncodedClue("bad_first_clue", ((-1,),))
-        return GameController(engine, make_agent())
+        return GameController(engine, make_agent(), check_revealed_consistency=True)
 
     def assert_accepted_but_now_inconsistent(self, controller, result):
         self.assertIs(result.result, VerdictResult.ACCEPTED)
