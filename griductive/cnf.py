@@ -74,14 +74,17 @@ class CNFEncoder:
     def encode_public_state(self, state: PublicGameState) -> CNFFormula:
         if state.size != self.size or state.cells != self.cells:
             raise PuzzleValidationError("Public state does not match CNF encoder cells")
+        for cell_id, status in state.proved.items():
+            if cell_id not in self.primary:
+                raise PuzzleValidationError(f"Unknown proved cell: {cell_id}")
+            if not isinstance(status, Status):
+                raise PuzzleValidationError(f"Invalid proved status for {cell_id}")
         self._begin_formula()
         self._check_clue_ids(state.revealed_clues)
         clauses: list[Clause] = []
         for clue in state.revealed_clues:
             clauses.extend(self.encode_clue(clue))
         for cell_id in sorted(state.proved, key=self.primary.__getitem__):
-            if not isinstance(state.proved[cell_id], Status):
-                raise PuzzleValidationError(f"Invalid proved status for {cell_id}")
             variable = self.primary[cell_id]
             clauses.append((variable if state.proved[cell_id].boolean else -variable,))
         return CNFFormula(tuple(clauses), dict(self.primary), dict(self.auxiliary))

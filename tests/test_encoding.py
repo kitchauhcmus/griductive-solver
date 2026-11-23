@@ -1,4 +1,5 @@
 from itertools import product
+from dataclasses import replace
 
 import pytest
 
@@ -204,3 +205,74 @@ def test_large_parity_and_count_comparisons_remain_polynomial():
     formula = CNFEncoder(puzzle.size, puzzle.cells).encode_clues((parity, compare))
     assert len(formula.auxiliary_variables) < 1500
     assert formula.clause_count < 15000
+
+
+def test_combined_public_kb_matches_conjunction_of_clue_semantics():
+    puzzle = Puzzle.load("puzzles/3x3_binary_chain.json")
+    clues = tuple(Clue.from_dict(raw, f"combined_{i}") for i, raw in enumerate((
+        {"type": "EXACTLY", "k": 1, "region": {"type": "ROW", "row": 1}},
+        {"type": "PARITY", "parity": "ODD", "target_status": "INNOCENT",
+         "region": {"type": "COLUMN", "column": "A"}},
+        {"type": "COUNT_COMPARE", "operator": "GE",
+         "left": {"type": "ROW", "row": 1}, "right": {"type": "COLUMN", "column": "A"}},
+        {"type": "ALL_OF", "clues": [
+            {"type": "DIFFERENT", "person": "A1", "other": "B2"},
+            {"type": "AT_MOST", "k": 1, "region": {"type": "ROW", "row": 2}},
+        ]},
+    )))
+    state = PublicGameState(puzzle.title, puzzle.size, puzzle.cells, clues, {"C3": Status.INNOCENT})
+    formula = CNFEncoder(puzzle.size, puzzle.cells).encode_public_state(state)
+    assert set(formula.primary_variables.values()).isdisjoint(formula.auxiliary_variables.values())
+    assert formula == CNFEncoder(puzzle.size, puzzle.cells).encode_public_state(state)
+    solver = DPLLSolver()
+    for bits in product((False, True), repeat=len(puzzle.cells)):
+        assignment = dict(zip(formula.primary_variables, bits))
+        assumptions = tuple(v if assignment[cell] else -v for cell, v in formula.primary_variables.items())
+        expected = not assignment["C3"] and all(evaluate_clue(c, assignment, puzzle) for c in clues)
+        assert solver.solve(formula.clauses, formula.variable_count, assumptions).satisfiable == expected
+
+    contradiction = replace(state, revealed_clues=clues + (
+        Clue.from_dict({"type": "FACT", "person": "C3", "status": "CRIMINAL"}, "conflict"),
+    ))
+    inconsistent_formula = CNFEncoder(puzzle.size, puzzle.cells).encode_public_state(contradiction)
+    assert not solver.solve(inconsistent_formula.clauses, inconsistent_formula.variable_count).satisfiable
+
+
+def test_public_state_rejects_unknown_cells_and_invalid_statuses():
+    puzzle = tiny_puzzle()
+    state = PublicGameState(puzzle.title, puzzle.size, puzzle.cells, (), {})
+    encoder = CNFEncoder(puzzle.size, puzzle.cells)
+    with pytest.raises(PuzzleValidationError, match="Unknown proved cell: Z9"):
+        encoder.encode_public_state(replace(state, proved={"Z9": Status.CRIMINAL}))
+    with pytest.raises(PuzzleValidationError, match="Invalid proved status for A1"):
+        encoder.encode_public_state(replace(state, proved={"A1": "CRIMINAL"}))
+
+
+@pytest.mark.parametrize("raw", [
+    {"type": "CONNECTED", "region": {"type": "WHOLE_GRID"}},
+    {"type": "CONNECTED_COUNT", "k": 3, "region": {"type": "WHOLE_GRID"}},
+    {"type": "GROUP_MOST", "group_kind": "ROW", "group": 1},
+    {"type": "GROUP_ONLY", "group_kind": "COLUMN", "group": "A", "k": 2},
+])
+def test_advanced_clues_on_every_3x3_assignment(raw):
+    puzzle = Puzzle.load("puzzles/3x3_binary_chain.json")
+    clue = Clue.from_dict(raw, "advanced_3x3")
+    formula = CNFEncoder(puzzle.size, puzzle.cells).encode_clues((clue,))
+    solver = DPLLSolver()
+    for bits in product((False, True), repeat=len(puzzle.cells)):
+        assignment = dict(zip(formula.primary_variables, bits))
+        assumptions = tuple(v if assignment[cell] else -v for cell, v in formula.primary_variables.items())
+        actual = solver.solve(formula.clauses, formula.variable_count, assumptions).satisfiable
+        assert actual == evaluate_clue(clue, assignment, puzzle), assignment
+
+
+def test_connectivity_on_larger_board_with_disconnected_and_connected_shapes():
+    puzzle = Puzzle.load("puzzles/4x4_easy_training.json")
+    clue = Clue.from_dict({"type": "CONNECTED", "region": {"type": "WHOLE_GRID"}}, "connect")
+    formula = CNFEncoder(puzzle.size, puzzle.cells).encode_clues((clue,))
+    solver = DPLLSolver()
+    for selected in (set(), {"A1"}, {"A1", "B1", "B2"}, {"A1", "B2"},
+                     {"A1", "B1", "C1", "D1", "D2", "D3", "D4"}, {"A1", "D4"}):
+        assignment = {cell: cell in selected for cell in formula.primary_variables}
+        assumptions = tuple(v if assignment[cell] else -v for cell, v in formula.primary_variables.items())
+        assert solver.solve(formula.clauses, formula.variable_count, assumptions).satisfiable == evaluate_clue(clue, assignment, puzzle)
