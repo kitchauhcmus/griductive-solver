@@ -1,0 +1,9 @@
+[project]
+name = "griductive-solver"
+version = "0.1.0"
+description = "Public-knowledge logic agent and integration for Griductive"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
