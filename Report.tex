@@ -534,82 +534,241 @@ Việc cách ly dựa vào các đường gọi được sử dụng khi suy lu�
 
 \clearpage
 \section{Bộ giải SAT bằng DPLL}
-\subsection{Quy trình tìm kiếm}
 
-Trong \code{griductive/dpll.py}, mỗi giả định được thêm dưới dạng mệnh
-đề đơn vị tạm thời vào bản công thức đang xét. Cơ sở tri thức gốc vẫn
-dùng được cho phép thử với giả định đối lập. DPLL sử dụng lan truyền
-mệnh đề đơn vị và phân nhánh đệ quy~\cite{dpll}. Mỗi lời gọi có ba giai đoạn.
+\subsection{Tổng quan và kiến trúc mô-đun}
 
-\begin{enumerate}
-  \item Quét các mệnh đề và lan truyền đến khi không phát sinh phép gán mới.
-    Một mệnh đề là đơn vị khi chưa có literal nào đúng và chỉ còn đúng một
-    literal chưa được gán.
-  \item Trả UNSAT cho nhánh nếu có mệnh đề mà mọi literal đều đã được gán sai.
-    Nếu mọi mệnh đề đã thỏa, gán sai cho các biến còn lại để tạo mô hình đầy
-    đủ rồi trả SAT.
-  \item Nếu chưa kết luận được, chọn mã biến nhỏ nhất chưa được gán và thử
-    lần lượt sai, đúng bằng đệ quy. Mỗi nhánh con thất bại được tính là một
-    lần quay lui. Nếu cả hai nhánh con đều thất bại, trả UNSAT.
-\end{enumerate}
+Thuật toán DPLL (Davis--Putnam--Logemann--Loveland)~\cite{dpll,aima} giải bài
+toán thỏa mãn Boolean (SAT) trên công thức ở dạng chuẩn hội (CNF) bằng cách
+kết hợp \emph{tìm kiếm quay lui} (backtracking search) với \emph{lan truyền
+mệnh đề đơn vị} (unit propagation) để cắt tỉa không gian tìm kiếm. Trong dự
+án, bộ giải được cài đặt độc lập tại \code{griductive/dpll.py} gồm ba thành
+phần chính:
+\begin{itemize}
+  \item \code{SolverMetrics}: lưu trữ các chỉ số hiệu năng của một lần giải
+    (\code{decisions}, \code{propagations}, \code{conflicts},
+    \code{backtracks}, \code{recursive_calls} và \code{runtime_ms}), đồng
+    thời hỗ trợ cộng dồn qua phương thức \code{add()}.
+  \item \code{SATResult}: bản ghi bất biến (\code{frozen=True}) chứa trạng
+    thái thỏa mãn (\code{satisfiable}), phép gán đầy đủ (\code{assignment}
+    hoặc \code{None} nếu \code{UNSAT}) và đối tượng \code{metrics}.
+  \item \code{DPLLSolver}: cài đặt lõi tìm kiếm DPLL thông qua các phương
+    thức \code{solve()}, \code{_search()}, \code{_unit_propagate()} và
+    \code{_all_satisfied()}.
+\end{itemize}
+
+\subsection{Mã giả và quy trình tìm kiếm}
+
+Để phục vụ phép kiểm tra hệ quả logic ($KB_t \land C_i$ và
+$KB_t \land \neg C_i$) mà không làm thay đổi cơ sở tri thức gốc, phương thức
+\code{solve()} nhận thêm danh sách giả định tạm thời \code{assumptions} và
+nối từng giả định dưới dạng mệnh đề đơn vị vào bản sao công thức làm việc:
+\[
+  \operatorname{solve}(KB, \text{assumptions} = (l_1, \dots, l_m))
+  \;\Longleftrightarrow\;
+  \operatorname{solve}\!\left(KB \cup \{(l_1), \dots, (l_m)\}\right).
+\]
 
 \begin{quote}
 \small
 \begin{verbatim}
-search(clauses, assignment):
-    if unit_propagation_has_conflict(clauses, assignment):
-        return UNSAT
-    if all_clauses_satisfied(clauses, assignment):
-        return complete_model(assignment)
-    variable = smallest_unassigned_variable(assignment)
+function DPLL-SOLVE(clauses, variable_count, assumptions):
+    working <- clauses U {(l) | l in assumptions}
+    assignment <- {}
+    model <- DPLL-SEARCH(working, assignment, variable_count)
+    return SAT(model) if model != None else UNSAT
+
+function DPLL-SEARCH(clauses, assignment, variable_count):
+    metrics.recursive_calls += 1
+    assignment <- copy(assignment)
+    if not UNIT-PROPAGATE(clauses, assignment):
+        return None                            // Phat hien mau thuan (UNSAT)
+    if ALL-SATISFIED(clauses, assignment):
+        for v in 1..variable_count:
+            if v not in assignment:
+                assignment[v] <- False         // Hoan thien mo hinh day du
+        return assignment
+    v <- smallest variable in 1..variable_count not in assignment
+    metrics.decisions += 1
     for value in [False, True]:
-        result = search(clauses, assignment + {variable: value})
-        if result is SAT:
+        branch <- copy(assignment)
+        branch[v] <- value
+        result <- DPLL-SEARCH(clauses, branch, variable_count)
+        if result != None:
             return result
-    return UNSAT
+        metrics.backtracks += 1
+    return None                                // Ca hai nhanh deu that bai
+
+function UNIT-PROPAGATE(clauses, assignment):
+    changed <- True
+    while changed:
+        changed <- False
+        for each clause in clauses:
+            satisfied <- False; undecided <- []
+            for each lit in clause:
+                v <- |lit|
+                if v not in assignment:
+                    undecided.append(lit)
+                else if assignment[v] == (lit > 0):
+                    satisfied <- True; break
+            if satisfied: continue
+            if undecided is empty:
+                metrics.conflicts += 1
+                return False                   // Menh de rong -> mau thuan
+            if |undecided| == 1:
+                v <- |undecided[0]|; val <- (undecided[0] > 0)
+                if v in assignment and assignment[v] != val:
+                    metrics.conflicts += 1
+                    return False
+                if v not in assignment:
+                    assignment[v] <- val
+                    metrics.propagations += 1
+                    changed <- True
+    return True
 \end{verbatim}
 \end{quote}
 
-\clearpage
-\subsection{Ví dụ lan truyền mệnh đề đơn vị}
+\subsection{Phân tích các thành phần cốt lõi}
 
-Xét $F=(C_A\lor C_B)\land(\neg C_A)\land(\neg C_B\lor C_C)$.
-Mệnh đề thứ hai buộc $C_A=0$. Khi đó mệnh đề đầu buộc $C_B=1$,
-và mệnh đề thứ ba buộc $C_C=1$. Cả ba mệnh đề đều thỏa sau ba lần
-lan truyền và không cần quyết định phân nhánh nào. Nếu thêm mệnh đề
-đơn vị $\neg C_C$, công thức trở thành UNSAT.
+Thiết kế trong \code{griductive/dpll.py} đáp ứng trực tiếp sáu yêu cầu của
+đề bài~\cite{spec} như sau:
 
-\paragraph{Ví dụ phân nhánh.}
-Công thức kiểm thử
+\begin{enumerate}
+  \item \textbf{Lan truyền mệnh đề đơn vị (\code{_unit_propagate}).}
+    Khi một mệnh đề chưa có literal nào đúng và chỉ còn đúng một literal
+    chưa được gán, literal đó bắt buộc phải nhận giá trị đúng để mệnh đề
+    được thỏa mãn. Quá trình lặp lại đến điểm bất động (\code{while changed})
+    vì một phép gán cưỡng bức có thể làm rút gọn dây chuyền nhiều mệnh đề
+    khác.
+  \item \textbf{Phát hiện mâu thuẫn (Conflict detection).}
+    Mâu thuẫn xảy ra khi một mệnh đề không còn literal chưa gán nào và mọi
+    literal của nó đều sai dưới phép gán hiện tại (\code{undecided} rỗng),
+    hoặc khi một biến bị ép nhận giá trị trái với giá trị đã gán. Bộ giải
+    tăng bộ đếm \code{conflicts} và lập tức cắt bỏ nhánh hiện tại.
+  \item \textbf{Chọn biến xác định (Deterministic variable selection).}
+    Khi không thể lan truyền thêm và công thức chưa thỏa hết, bộ giải luôn
+    chọn biến có chỉ số nguyên dương nhỏ nhất trong $1\dots\text{variable\_count}$
+    chưa nằm trong \code{assignment}. Cách chọn này đảm bảo mọi lần chạy
+    trên cùng đầu vào đều đi theo đúng một cây tìm kiếm và tái lập được
+    chính xác các bộ đếm. Theo đề bài~\cite{spec}, khử literal thuần túy
+    (pure-literal elimination) và các heuristic phân nhánh nâng cao
+    (như VSIDS, DLIS) là phần tùy chọn; với kích thước bàn từ $3\times3$
+    đến $5\times5$, nhóm không cài đặt các thành phần này để giữ bộ giải
+    gọn nhẹ, dễ kiểm chứng.
+  \item \textbf{Phân nhánh đệ quy và quay lui (\code{_search}).}
+    Với biến $v$ được chọn, bộ giải sao chép bảng gán hiện tại, thử lần
+    lượt \code{False} rồi \code{True} bằng lời gọi đệ quy. Nếu nhánh con
+    trả về \code{None}, bộ giải tăng \code{backtracks} và quay lui thử giá
+    trị còn lại; nếu cả hai nhánh đều thất bại, trả về \code{None} cho mức
+    đệ quy phía trên.
+  \item \textbf{Hoàn thiện mô hình và kết quả trả về.}
+    Khi \code{_all_satisfied()} xác nhận mọi mệnh đề đều đã có ít nhất một
+    literal đúng, mọi biến chưa được gán (không làm thay đổi chân trị của
+    công thức) được điền mặc định giá trị \code{False} qua
+    \code{assignment.setdefault(variable, False)} để tạo thành một mô hình
+    đầy đủ, rồi trả về \code{SATResult(True, assignment, metrics)}. Ngược
+    lại, nếu toàn bộ cây tìm kiếm đều mâu thuẫn, bộ giải trả về
+    \code{SATResult(False, None, metrics)}.
+  \item \textbf{Đo lường chỉ số và thời gian (\code{SolverMetrics}).}
+    Thời gian thực thi \code{runtime_ms} được đo bằng \code{time.perf_counter()}
+    tính theo mili-giây cho toàn bộ lời gọi \code{solve()}, kèm năm bộ đếm
+    tìm kiếm được tổng hợp ở Bảng dưới đây.
+\end{enumerate}
+
+\begin{center}
+\small
+\begin{tabular}{@{}L{34mm}L{115mm}@{}}
+\textbf{Chỉ số} & \textbf{Ý nghĩa và vị trí cập nhật trong \code{dpll.py}}\\ \hline
+\code{decisions} & Số lần chọn biến chưa gán để phân nhánh trong \code{_search()}.\\
+\code{propagations} & Số lần ép gán giá trị cho biến nhờ mệnh đề đơn vị trong \code{_unit_propagate()}.\\
+\code{conflicts} & Số lần phát hiện mệnh đề rỗng hoặc mâu thuẫn phép gán trong \code{_unit_propagate()}.\\
+\code{backtracks} & Số nhánh con thất bại phải quay lui trong vòng lặp phân nhánh của \code{_search()}.\\
+\code{recursive_calls} & Tổng số lời gọi hàm \code{_search()} (tương ứng số nút trên cây tìm kiếm).\\
+\code{runtime_ms} & Thời gian chạy thực tế (ms) của một lần gọi \code{solve()}.\\ \hline
+\end{tabular}
+\end{center}
+
+\subsection{Ví dụ minh họa quá trình chạy}
+
+\paragraph{Ví dụ 1: Lan truyền đơn vị không cần phân nhánh.}
+Xét công thức
 \[
-  (x\lor y)\land(x\lor\neg y)\land(\neg x\lor y)
-    \land(\neg x\lor\neg y)
+  F = (C_A \lor C_B) \land (\neg C_A) \land (\neg C_B \lor C_C).
 \]
-ban đầu không có mệnh đề đơn vị. DPLL chọn $x$. Nhánh $x=0$ buộc đồng
-thời $y$ và $\neg y$ qua hai mệnh đề đầu. Nhánh $x=1$ cũng buộc $y$
-và $\neg y$ qua hai mệnh đề cuối. Cả hai nhánh thất bại, nên công thức
-là UNSAT và bộ giải thực sự phải quay lui. Với công thức này, chương
-trình ghi nhận một quyết định, hai lần lan truyền, hai mâu thuẫn, hai
-lần quay lui và ba lời gọi đệ quy.
+Ở lời gọi đầu tiên, mệnh đề đơn vị $(\neg C_A)$ ép $C_A = \text{False}$.
+Mệnh đề $(C_A \lor C_B)$ rút gọn còn $(C_B)$, ép $C_B = \text{True}$. Kế
+tiếp, $(\neg C_B \lor C_C)$ rút gọn còn $(C_C)$, ép $C_C = \text{True}$.
+Cả ba mệnh đề đều thỏa mãn sau 3 lần lan truyền với 0 quyết định và 0 lần
+quay lui. Nếu đưa thêm giả định \code{assumptions} $= (\neg C_C)$, mệnh đề
+$(\neg C_C)$ mâu thuẫn với $C_C = \text{True}$ nên bộ giải trả ngay
+\code{UNSAT}.
 
-\paragraph{Tính đầy đủ của quy trình.}
-Lan truyền đơn vị chỉ gán những giá trị mà mọi phép gán hoàn chỉnh của
-nhánh buộc phải có. Một mệnh đề mâu thuẫn loại mọi cách hoàn tất nhánh.
-Khi cần phân nhánh, hai giá trị sai và đúng của biến được chọn chia
-toàn bộ phép gán còn lại thành hai tập. Mỗi nhánh cố định thêm một
-biến nên quy trình dừng trên mọi công thức hữu hạn. Khi phép gán bộ
-phận đã thỏa tất cả mệnh đề, gán sai cho những biến còn lại vẫn giữ
-cho công thức được thỏa.
+\paragraph{Ví dụ 2: Phân nhánh và quay lui trên công thức \code{UNSAT}.}
+Xét công thức kiểm thử gồm hai biến $x$ (chỉ số 1) và $y$ (chỉ số 2):
+\[
+  G = (x \lor y) \land (x \lor \neg y) \land (\neg x \lor y)
+      \land (\neg x \lor \neg y).
+\]
+Ban đầu không có mệnh đề đơn vị nào, nên bộ giải phải chọn biến chỉ số nhỏ
+nhất là $x$ để phân nhánh. Cây tìm kiếm được duyệt theo thứ tự xác định
+như sau:
 
-\subsection{Chỉ số và kiểm thử}
+\begin{quote}
+\small
+\begin{verbatim}
+                     [Goc: chua gan]  (recursive_calls = 1)
+                      Chon x (decisions = 1)
+                      /                    \
+             x = False                      x = True
+        (recursive_calls = 2)          (recursive_calls = 3)
+        (x v y)   => ep y = True       (~x v y)   => ep y = True
+                     (propagations = 1)              (propagations = 2)
+        (x v ~y)  => rong!             (~x v ~y)  => rong!
+                     (conflicts = 1)                 (conflicts = 2)
+        -> UNSAT (backtracks = 1)      -> UNSAT (backtracks = 2)
+                      \                    /
+                     Ket qua cuoi cung: UNSAT
+\end{verbatim}
+\end{quote}
 
-Một quyết định được tính khi chọn biến để phân nhánh. Một bước lan
-truyền được tính khi mệnh đề đơn vị gán thêm giá trị. Mâu thuẫn xảy
-ra khi một mệnh đề sai dưới phép gán bộ phận. Mỗi nhánh con thất bại
-được tính là một lần quay lui. Bộ giải cũng ghi số lời gọi đệ quy và
-thời gian chạy. Thứ tự chọn biến và thử giá trị cố định giúp các bộ
-đếm lặp lại được. Các bài kiểm thử bao gồm mô hình SAT, giả định dẫn
-đến UNSAT, lan truyền đơn vị và công thức buộc phải quay lui.
+Toàn bộ quá trình kết thúc với đúng 1 quyết định, 2 lần lan truyền, 2 mâu
+thuẫn, 2 lần quay lui và 3 lời gọi đệ quy --- khớp hoàn toàn với kết quả
+kiểm thử đơn vị của chương trình.
+
+\subsection{Tính đúng đắn, tính đầy đủ và giới hạn cài đặt}
+
+\paragraph{Tính đúng đắn, đầy đủ và dừng.}
+Mỗi bước lan truyền đơn vị chỉ gán giá trị duy nhất bắt buộc phải đúng
+trong mọi mô hình mở rộng của nhánh hiện tại, do đó không làm mất bất kỳ
+nghiệm hợp lệ nào. Khi phân nhánh trên biến $v$, hai nhánh $v = \text{False}$
+và $v = \text{True}$ phân hoạch toàn bộ không gian phép gán còn lại thành
+hai tập rời nhau. Vì mỗi lời gọi đệ quy cố định thêm ít nhất một biến và
+tập biến là hữu hạn, thuật toán chắc chắn dừng sau hữu hạn bước. Khi mọi
+mệnh đề đã thỏa mãn dưới phép gán bộ phận, việc gán \code{False} cho các
+biến còn lại không làm thay đổi chân trị của bất kỳ mệnh đề nào đã thỏa,
+nên mô hình đầy đủ trả về luôn hợp lệ.
+
+\paragraph{Liên hệ thực nghiệm và giới hạn.}
+Như trình bày chi tiết ở Mục Thực nghiệm, hai bàn $3\times3$ (\emph{Binary
+Foundations} và \emph{Counting Trail}) được giải hoàn toàn chỉ bằng lan
+truyền đơn vị (0 quyết định, 0 quay lui). Khi kích thước bàn và độ phức tạp
+manh mối tăng lên ở các bàn $4\times4$ và $5\times5$ (\emph{Deep Inference}
+có 13.493 mệnh đề), số quyết định tăng lên 5.658 và số lần quay lui đạt
+7.086, chiếm khoảng 99\% tổng thời gian giải.
+
+Về mặt kỹ thuật, cài đặt hiện tại có hai giới hạn chính: (i) mỗi vòng lan
+truyền quét lại toàn bộ danh sách mệnh đề và sao chép từ điển \code{assignment}
+ở mỗi bước đệ quy; (ii) bộ giải không học mệnh đề mâu thuẫn và giải lại từ
+đầu cho mỗi truy vấn giả định. Trên các bài toán lớn hơn $5\times5$, hiệu
+năng có thể cải thiện đáng kể bằng cấu trúc \emph{two-watched literals},
+tái sử dụng trạng thái giữa các truy vấn (incremental SAT) và kiến trúc
+CDCL (\emph{Conflict-Driven Clause Learning}) với heuristic chọn biến
+VSIDS. Các kỹ thuật này nằm ngoài phạm vi yêu cầu của đồ án~\cite{spec}.
+
+\paragraph{Kiểm thử đơn vị.}
+Bộ kiểm thử tự động kiểm tra độc lập \code{DPLLSolver} trên các kịch bản:
+công thức \code{SAT} có mô hình đầy đủ, kiểm tra giả định \code{assumptions}
+dẫn đến \code{UNSAT} mà không làm hỏng công thức gốc, chuỗi lan truyền đơn
+vị dây chuyền, và công thức buộc phải phân nhánh và quay lui.
 
 \clearpage
 \section{Giao diện trình duyệt và tích hợp}
