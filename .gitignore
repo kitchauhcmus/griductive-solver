@@ -9,3 +9,9 @@ venv/
 .coverage
 htmlcov/
 results/local/
+
+# LaTeX build artifacts for Report.tex
+/Report.aux
+/Report.out
+/Report.synctex.gz
+/Report.toc
