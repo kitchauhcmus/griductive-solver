@@ -152,3 +152,40 @@ display. Cell order is row-major (`A1`, `B1`, ..., `A2`, ...). The bundled
 cases are `3x3_binary_chain.json`, `3x3_counting_chain.json`,
 `4x4_easy_training.json`, `4x4_medium_links.json`, and
 `5x5_deep_inference.json`. Rookie Training remains the default GUI puzzle.
+
+## Agent branch integration notes
+
+The team `main` branch is the API and application contract. Agent improvements
+retain its full puzzle models, player metadata, production modules, public
+imports and tests. `GameController` now has one implementation in
+`griductive/controller.py`, re-exported through `griductive.engine` and the
+package root so existing GUI, CLI and experiment imports keep working.
+
+The default Controller preserves main's three-query initial auto-step: one base
+SAT check and two opposite assumptions. To additionally check the new KB
+immediately after every accepted reveal, construct it with
+`check_revealed_consistency=True`; that adds one SAT call per accepted move.
+The standalone fixture demo enables this optional mode and uses an exhaustive
+test oracle, while the application uses the real CNF encoder and DPLL.
+
+Open `griductive-solver.code-workspace` in VS Code. On this Windows checkout,
+the explicit local interpreter avoids the Microsoft Store `python` alias:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m examples.agent_demo
+.\.venv\Scripts\python.exe -m examples.team_integration puzzles\3x3_binary_chain.json
+```
+
+If the environment lacks pip, run
+`.\.venv\Scripts\python.exe -m ensurepip --upgrade` first. The complete test
+suite uses pytest, which runs both main's function tests/fixtures and the Agent's
+unittest classes. `unittest discover` alone omits the production function tests.
+
+- [VS Code guide](docs/VSCODE_GUIDE.md): running, testing and debugging.
+- [Team integration](docs/TEAM_INTEGRATION.md): concrete module connections and modes.
+- [Vietnamese handoff](docs/AGENT_HANDOFF.md): shared interfaces and ownership.
+- [Validation](docs/VALIDATION.md): current verification and its scope.
+- [Agent report source](docs/AGENT_REPORT.md) and
+  [formatted PDF](output/pdf/AGENT_REPORT.pdf): the Agent contribution.

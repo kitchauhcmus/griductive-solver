@@ -5,3 +5,7 @@ __pycache__/
 experiment_results.csv
 *.log
 venv/
+# Local agent verification artifacts
+.coverage
+htmlcov/
+results/local/

@@ -30,6 +30,14 @@ class VerdictResult(str, Enum):
     ALREADY_SOLVED = "ALREADY_SOLVED"
 
 
+class RunStatus(str, Enum):
+    READY = "READY"
+    SOLVED = "SOLVED"
+    STUCK = "STUCK"
+    INCONSISTENT = "INCONSISTENT"
+    STEP_LIMIT = "STEP_LIMIT"
+
+
 @dataclass(frozen=True)
 class CellInfo:
     id: str
