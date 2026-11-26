@@ -7,14 +7,17 @@ def resolve_region(region: RegionSpec, cells: tuple[CellInfo, ...], size: int) -
     by_id = {cell.id: cell for cell in cells}
     kind = region.type.upper()
     if kind == "ROW":
-        if not isinstance(region.row, int) or not 1 <= region.row <= size:
+        if type(region.row) is not int or not 1 <= region.row <= size:
             raise PuzzleValidationError(f"Invalid row: {region.row}")
         result = [cell.id for cell in cells if cell.row == region.row]
     elif kind == "COLUMN":
         column = region.column
         if isinstance(column, str):
-            column = ord(column.upper()) - 64
-        if not isinstance(column, int) or not 1 <= column <= size:
+            column = (
+                ord(column.upper()) - 64
+                if len(column) == 1 and column.isascii() and column.isalpha() else None
+            )
+        if type(column) is not int or not 1 <= column <= size:
             raise PuzzleValidationError(f"Invalid column: {region.column}")
         result = [cell.id for cell in cells if cell.column == column]
     elif kind == "NEIGHBORS":

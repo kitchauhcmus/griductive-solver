@@ -12,7 +12,7 @@ EXTENSION_TYPES = {
     "INCLUDED_COUNT", "OVERLAP_COUNT", "CONNECTED_COUNT",
 }
 ALL_TYPES = CORE_TYPES | EXTENSION_TYPES
-GROUP_KINDS = {"ROW", "COLUMN", "PROFESSION"}
+GROUP_KINDS = {"ROW", "COLUMN", "PROFESSION", "PERSON"}
 
 
 def validate_puzzle(puzzle: Puzzle, *, check_truth: bool = True) -> None:
@@ -63,36 +63,40 @@ def _all_clue_ids(clue: Clue) -> tuple[str, ...]:
     return (clue.id,) + tuple(item for child in clue.children for item in _all_clue_ids(child))
 
 
-def validate_clue(clue: Clue, puzzle: Puzzle) -> None:
+def validate_clue(clue: Clue, puzzle: Puzzle | PublicGameState) -> None:
     if clue.type not in ALL_TYPES:
         raise PuzzleValidationError(f"Unsupported clue type: {clue.type}")
+    if not isinstance(clue.target_status, Status):
+        raise PuzzleValidationError(f"Invalid target status in clue {clue.id}")
     ids = {cell.id for cell in puzzle.cells}
     if clue.type == "FACT":
-        if clue.person not in ids or clue.status is None:
+        if clue.person not in ids or not isinstance(clue.status, Status):
             raise PuzzleValidationError(f"Invalid FACT clue: {clue.id}")
     elif clue.type in {"SAME", "DIFFERENT"}:
         if clue.person not in ids or clue.other not in ids or clue.person == clue.other:
             raise PuzzleValidationError(f"Invalid binary clue: {clue.id}")
     elif clue.type in {"EXACTLY", "AT_LEAST", "AT_MOST"}:
         members = _validated_region(clue, puzzle)
-        if not isinstance(clue.k, int) or not 0 <= clue.k <= len(members):
+        if type(clue.k) is not int or not 0 <= clue.k <= len(members):
             raise PuzzleValidationError(f"Invalid k in clue {clue.id}")
     elif clue.type == "INCLUDED_COUNT":
         members = _validated_region(clue, puzzle)
-        if clue.person not in members or not isinstance(clue.k, int) or not 0 <= clue.k <= len(members):
+        if clue.person not in members or type(clue.k) is not int or not 0 <= clue.k <= len(members):
             raise PuzzleValidationError(f"Invalid INCLUDED_COUNT clue: {clue.id}")
     elif clue.type == "OVERLAP_COUNT":
         total_members = _validated_region(clue, puzzle)
-        overlap_members = resolve_region(clue.left, puzzle.cells, puzzle.size) if clue.left else ()
+        if clue.left is None:
+            raise PuzzleValidationError(f"Missing overlap region in clue {clue.id}")
+        overlap_members = resolve_region(clue.left, puzzle.cells, puzzle.size)
         if (
-            not isinstance(clue.k, int) or not 0 <= clue.k <= len(total_members)
-            or not isinstance(clue.overlap_k, int) or not 0 <= clue.overlap_k <= len(overlap_members)
+            type(clue.k) is not int or not 0 <= clue.k <= len(total_members)
+            or type(clue.overlap_k) is not int or not 0 <= clue.overlap_k <= len(overlap_members)
             or not set(overlap_members) <= set(total_members)
         ):
             raise PuzzleValidationError(f"Invalid OVERLAP_COUNT clue: {clue.id}")
     elif clue.type == "CONNECTED_COUNT":
         members = _validated_region(clue, puzzle)
-        if not isinstance(clue.k, int) or not 0 <= clue.k <= len(members):
+        if type(clue.k) is not int or not 0 <= clue.k <= len(members):
             raise PuzzleValidationError(f"Invalid CONNECTED_COUNT clue: {clue.id}")
     elif clue.type == "PARITY":
         _validated_region(clue, puzzle)
@@ -117,11 +121,11 @@ def validate_clue(clue: Clue, puzzle: Puzzle) -> None:
         key = normalize_group_key(clue.group_kind, clue.group)
         if key not in groups:
             raise PuzzleValidationError(f"Unknown target group {clue.group!r} for {clue.group_kind}")
-        if clue.type == "GROUP_ONLY" and (not isinstance(clue.k, int) or not 0 <= clue.k <= len(groups[key])):
+        if clue.type == "GROUP_ONLY" and (type(clue.k) is not int or not 0 <= clue.k <= len(groups[key])):
             raise PuzzleValidationError(f"GROUP_ONLY requires a valid k: {clue.id}")
 
 
-def _validated_region(clue: Clue, puzzle: Puzzle) -> tuple[str, ...]:
+def _validated_region(clue: Clue, puzzle: Puzzle | PublicGameState) -> tuple[str, ...]:
     if clue.region is None:
         raise PuzzleValidationError(f"Missing region: {clue.id}")
     return resolve_region(clue.region, puzzle.cells, puzzle.size)
@@ -130,16 +134,19 @@ def _validated_region(clue: Clue, puzzle: Puzzle) -> tuple[str, ...]:
 def normalize_group_key(kind: str | None, key) -> str | int:
     kind = str(kind or "").upper()
     if kind == "ROW":
-        try:
+        if type(key) is int:
+            return key
+        if isinstance(key, str) and key.isascii() and key.isdecimal():
             return int(key)
-        except (TypeError, ValueError) as exc:
-            raise PuzzleValidationError(f"Invalid row group: {key}") from exc
+        raise PuzzleValidationError(f"Invalid row group: {key}")
     if kind == "COLUMN":
-        if isinstance(key, int):
+        if type(key) is int:
             return chr(64 + key)
         return str(key or "").upper()
     if kind == "PROFESSION":
         return str(key or "").casefold()
+    if kind == "PERSON":
+        return str(key or "").upper()
     raise PuzzleValidationError(f"Unsupported group kind: {kind}")
 
 
@@ -147,6 +154,14 @@ def resolve_groups(kind: str | None, puzzle: Puzzle | PublicGameState) -> dict[s
     kind = str(kind or "").upper()
     if kind not in GROUP_KINDS:
         raise PuzzleValidationError(f"Unsupported group kind: {kind}")
+    if kind == "PERSON":
+        # A person's neighbor tally counts the eight surrounding cells, not the person.
+        return {
+            origin.id: resolve_region(
+                RegionSpec(type="NEIGHBORS", center=origin.id), puzzle.cells, puzzle.size
+            )
+            for origin in puzzle.cells
+        }
     groups: dict[str | int, list[str]] = {}
     for cell in puzzle.cells:
         if kind == "ROW":
@@ -259,7 +274,10 @@ def clue_referenced_cells(clue: Clue, puzzle: Puzzle | PublicGameState) -> tuple
         referenced.update(clue_referenced_cells(child, puzzle))
     if clue.type in {"GROUP_MOST", "GROUP_ONLY"}:
         groups = resolve_groups(clue.group_kind, puzzle)
-        referenced.update(groups[normalize_group_key(clue.group_kind, clue.group)])
+        key = normalize_group_key(clue.group_kind, clue.group)
+        referenced.update(groups[key])
+        if clue.group_kind == "PERSON":
+            referenced.add(key)
     order = {cell.id: index for index, cell in enumerate(puzzle.cells)}
     return tuple(sorted(referenced, key=order.__getitem__))
 
@@ -288,6 +306,8 @@ def clue_neighborhood_centers(clue: Clue) -> tuple[str, ...]:
     for child in clue.children:
         for cell_id in clue_neighborhood_centers(child):
             add(cell_id)
+    if clue.type in {"GROUP_MOST", "GROUP_ONLY"} and clue.group_kind == "PERSON":
+        add(str(clue.group))
     return tuple(centers)
 
 
@@ -320,6 +340,8 @@ def _named_references(clue: Clue) -> tuple[str, ...]:
 
     add(clue.person)
     add(clue.other)
+    if clue.type in {"GROUP_MOST", "GROUP_ONLY"} and clue.group_kind == "PERSON":
+        add(str(clue.group))
     for region in (clue.region, clue.left, clue.right):
         if region is None:
             continue
@@ -399,8 +421,12 @@ def describe_clue(clue: Clue, puzzle: Puzzle | PublicGameState | None = None) ->
     if clue.type == "CONNECTED":
         return f"All {subject} in {describe_region(clue.region, puzzle)} are connected edge-to-edge."
     if clue.type == "GROUP_MOST":
+        if clue.group_kind == "PERSON":
+            return f"{_display_name(str(clue.group), puzzle)} has strictly the most {status_word} neighbors."
         return f"{clue.group_kind.title()} {clue.group} has strictly the most {subject}."
     if clue.type == "GROUP_ONLY":
+        if clue.group_kind == "PERSON":
+            return f"{_display_name(str(clue.group), puzzle)} is the only person with exactly {clue.k} {status_word} neighbors."
         return f"{clue.group_kind.title()} {clue.group} is the only {clue.group_kind.lower()} with exactly {clue.k} {subject}."
     return clue.type
 

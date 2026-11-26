@@ -20,7 +20,8 @@ CNF, and proves verdicts with a DPLL SAT solver implemented in this repository.
   `AT_LEAST`, and `AT_MOST`.
 - Extended constraints: `PARITY`, `COUNT_COMPARE`, `ALL_OF`, `CONNECTED`,
   `CONNECTED_COUNT`, `INCLUDED_COUNT`, `OVERLAP_COUNT`, `GROUP_MOST`, and
-  `GROUP_ONLY`.
+  `GROUP_ONLY`. Group ranking can compare rows, columns, professions or
+  people's eight-neighbor counts.
 - Criminal or Innocent counting through the reusable `target_status` selector.
 - Composable regions: row, column, neighbors, explicit list, whole grid,
   corners, edges, cells between two people, common neighbors, directional
@@ -136,8 +137,9 @@ base contains only revealed clues and unit clauses for previously proved
 verdicts. Hidden labels and face-down clues never enter hint or deduction code.
 
 Cardinality constraints use a polynomial finite-state counter, allowing global
-counts on a 5x5 board without combinatorial clause growth. Parity, count
-comparison, and group ranking use truth-table blocking over their local groups.
+counts on a 5x5 board without combinatorial clause growth. Parity uses an XOR
+chain; count comparison and group ranking compare exact-count counter states,
+including when two regions overlap.
 Connectivity uses a polynomial reachability encoding with deterministic
 auxiliary variables; auxiliary counts are reported separately from primary
 character variables.
