@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import combinations, product
+from itertools import combinations
 
+from .clues import normalize_group_key, resolve_groups, validate_clue
 from .models import CellInfo, Clue, PublicGameState, PuzzleValidationError, Status
 from .regions import resolve_region
 
@@ -28,11 +29,40 @@ class CNFEncoder:
     """Reusable deterministic encoder for structured Griductive clues."""
 
     def __init__(self, size: int, cells: tuple[CellInfo, ...]):
+        if type(size) is not int or size < 1:
+            raise PuzzleValidationError("CNF board size must be a positive integer")
+        expected = [f"{chr(65 + column)}{row}" for row in range(1, size + 1) for column in range(size)]
+        if [cell.id for cell in cells] != expected:
+            raise PuzzleValidationError("CNF cells must use a positive square size and row-major IDs")
+        if any(cell.row != index // size + 1 or cell.column != index % size + 1 for index, cell in enumerate(cells)):
+            raise PuzzleValidationError("CNF cell coordinates must match their row-major IDs")
         self.size = size
         self.cells = cells
         self.primary = {cell.id: index + 1 for index, cell in enumerate(cells)}
         self.auxiliary: dict[str, int] = {}
         self._cardinality_serial = 0
+        self._parity_serial = 0
+        self._validation_state = PublicGameState("", size, cells, (), {})
+
+    def _begin_formula(self) -> None:
+        """Auxiliaries belong to one formula, not to every formula this instance has built."""
+        self.auxiliary = {}
+        self._cardinality_serial = 0
+        self._parity_serial = 0
+
+    @staticmethod
+    def _check_clue_ids(clues: tuple[Clue, ...] | list[Clue]) -> None:
+        seen: set[str] = set()
+
+        def visit(clue: Clue) -> None:
+            if clue.id in seen:
+                raise PuzzleValidationError(f"Duplicate clue id: {clue.id}")
+            seen.add(clue.id)
+            for child in clue.children:
+                visit(child)
+
+        for clue in clues:
+            visit(clue)
 
     def _new_auxiliary(self, name: str) -> int:
         if name in self.auxiliary:
@@ -42,6 +72,15 @@ class CNFEncoder:
         return variable
 
     def encode_public_state(self, state: PublicGameState) -> CNFFormula:
+        if state.size != self.size or state.cells != self.cells:
+            raise PuzzleValidationError("Public state does not match CNF encoder cells")
+        for cell_id, status in state.proved.items():
+            if cell_id not in self.primary:
+                raise PuzzleValidationError(f"Unknown proved cell: {cell_id}")
+            if not isinstance(status, Status):
+                raise PuzzleValidationError(f"Invalid proved status for {cell_id}")
+        self._begin_formula()
+        self._check_clue_ids(state.revealed_clues)
         clauses: list[Clause] = []
         for clue in state.revealed_clues:
             clauses.extend(self.encode_clue(clue))
@@ -51,12 +90,16 @@ class CNFEncoder:
         return CNFFormula(tuple(clauses), dict(self.primary), dict(self.auxiliary))
 
     def encode_clues(self, clues: tuple[Clue, ...] | list[Clue]) -> CNFFormula:
+        self._begin_formula()
+        self._check_clue_ids(clues)
         clauses: list[Clause] = []
         for clue in clues:
             clauses.extend(self.encode_clue(clue))
         return CNFFormula(tuple(clauses), dict(self.primary), dict(self.auxiliary))
 
     def encode_clue(self, clue: Clue) -> list[Clause]:
+        validate_clue(clue, self._validation_state)
+        self._check_clue_ids((clue,))
         if clue.type == "FACT":
             variable = self._variable(clue.person)
             return [(variable if clue.status and clue.status.boolean else -variable,)]
@@ -90,11 +133,7 @@ class CNFEncoder:
             )
         if clue.type == "PARITY":
             variables = self._region_literals(clue.region, clue.target_status)
-            target = 1 if clue.parity == "ODD" else 0
-            return self._forbid_assignments(
-                variables,
-                lambda bits: sum(bits) % 2 != target,
-            )
+            return self._encode_parity(variables, clue.parity == "ODD")
         if clue.type == "COUNT_COMPARE":
             left_ids = resolve_region(clue.left, self.cells, self.size)  # type: ignore[arg-type]
             right_ids = resolve_region(clue.right, self.cells, self.size)  # type: ignore[arg-type]
@@ -116,12 +155,11 @@ class CNFEncoder:
                     for key, members in groups.items() if key != target_key
                     for clause in self._encode_count_compare(target, members, clue.target_status, "GT")
                 ]
-            clauses = self._at_least(self._status_literals(target, clue.target_status), clue.k)
-            clauses += self._at_most(self._status_literals(target, clue.target_status), clue.k)
+            clauses = self._cardinality(self._status_literals(target, clue.target_status), {clue.k})
             for key, members in groups.items():
                 if key != target_key:
                     literals = self._status_literals(members, clue.target_status)
-                    clauses += self._forbid_assignments(literals, lambda bits, k=clue.k: sum(bits) == k)
+                    clauses += self._cardinality(literals, set(range(len(literals) + 1)) - {clue.k})
             return clauses
         raise PuzzleValidationError(f"Unsupported clue type: {clue.type}")
 
@@ -142,49 +180,44 @@ class CNFEncoder:
     def _encode_count_compare(
         self, left_ids: tuple[str, ...], right_ids: tuple[str, ...], status: Status, operator: str
     ) -> list[Clause]:
-        ids = tuple(dict.fromkeys(left_ids + right_ids))
-        variables = tuple(self.primary[cell_id] for cell_id in ids)
+        if operator not in {"EQ", "NE", "LT", "LE", "GT", "GE"}:
+            raise PuzzleValidationError(f"Unsupported count comparison: {operator}")
+        left_clauses, left_states = self._count_states(self._status_literals(left_ids, status))
+        right_clauses, right_states = self._count_states(self._status_literals(right_ids, status))
+        comparisons = {
+            "EQ": lambda a, b: a == b, "NE": lambda a, b: a != b,
+            "LT": lambda a, b: a < b, "LE": lambda a, b: a <= b,
+            "GT": lambda a, b: a > b, "GE": lambda a, b: a >= b,
+        }
+        allowed = comparisons[operator]
+        return left_clauses + right_clauses + [
+            (-left_state, -right_state)
+            for left_count, left_state in enumerate(left_states)
+            for right_count, right_state in enumerate(right_states)
+            if not allowed(left_count, right_count)
+        ]
 
-        def invalid(bits: tuple[bool, ...]) -> bool:
-            criminal_values = dict(zip(ids, bits))
-            target = status.boolean
-            left_count = sum(criminal_values[x] == target for x in left_ids)
-            right_count = sum(criminal_values[x] == target for x in right_ids)
-            valid = {
-                "EQ": left_count == right_count, "NE": left_count != right_count,
-                "LT": left_count < right_count, "LE": left_count <= right_count,
-                "GT": left_count > right_count, "GE": left_count >= right_count,
-            }.get(operator, False)
-            return not valid
-
-        return self._forbid_assignments(variables, invalid)
+    def _encode_parity(self, variables: tuple[int, ...], odd: bool) -> list[Clause]:
+        """Chain XOR equivalences; signed literals also count Innocents correctly."""
+        self._parity_serial += 1
+        clauses: list[Clause] = []
+        parity = variables[0]
+        for index, literal in enumerate(variables[1:], start=2):
+            result = self._new_auxiliary(f"parity:{self._parity_serial}:{index}")
+            clauses.extend((
+                (parity, literal, -result), (parity, -literal, result),
+                (-parity, literal, result), (-parity, -literal, -result),
+            ))
+            parity = result
+        clauses.append((parity if odd else -parity,))
+        return clauses
 
     def _groups(self, kind: str | None) -> dict[str | int, tuple[str, ...]]:
-        kind = str(kind or "").upper()
-        if kind not in {"ROW", "COLUMN", "PROFESSION"}:
-            raise PuzzleValidationError(f"Unsupported group kind: {kind}")
-        groups: dict[str | int, list[str]] = {}
-        for cell in self.cells:
-            key: str | int
-            if kind == "ROW":
-                key = cell.row
-            elif kind == "COLUMN":
-                key = chr(64 + cell.column)
-            else:
-                key = cell.profession.casefold()
-            groups.setdefault(key, []).append(cell.id)
-        return {key: tuple(members) for key, members in groups.items()}
+        return resolve_groups(kind, self._validation_state)
 
     @staticmethod
     def _normalize_group_key(kind: str | None, key) -> str | int:
-        kind = str(kind or "").upper()
-        if kind == "ROW":
-            return int(key)
-        if kind == "COLUMN":
-            return chr(64 + key) if isinstance(key, int) else str(key).upper()
-        if kind == "PROFESSION":
-            return str(key).casefold()
-        raise PuzzleValidationError(f"Unsupported group kind: {kind}")
+        return normalize_group_key(kind, key)
 
     def _encode_connected(self, members: tuple[str, ...], status: Status, clue_id: str) -> list[Clause]:
         """Polynomial four-neighbor reachability encoding with a canonical first root."""
@@ -256,6 +289,14 @@ class CNFEncoder:
         if len(valid) == n + 1:
             return []
 
+        clauses, final_states = self._count_states(variables)
+        clauses.append(tuple(final_states[count] for count in valid))
+        return clauses
+
+    def _count_states(self, variables: tuple[int, ...]) -> tuple[list[Clause], tuple[int, ...]]:
+        """One-hot exact count after each input; final states can compare two regions."""
+        n = len(variables)
+
         self._cardinality_serial += 1
         prefix = f"card:{self._cardinality_serial}"
         previous = tuple(self._new_auxiliary(f"{prefix}:0:{count}") for count in range(n + 1))
@@ -274,13 +315,4 @@ class CNFEncoder:
                     clauses.append((-state, -literal))
             previous = current
 
-        clauses.append(tuple(previous[count] for count in valid))
-        return clauses
-
-    @staticmethod
-    def _forbid_assignments(variables: tuple[int, ...], invalid) -> list[Clause]:
-        clauses: list[Clause] = []
-        for bits in product((False, True), repeat=len(variables)):
-            if invalid(bits):
-                clauses.append(tuple(-var if bit else var for var, bit in zip(variables, bits)))
-        return clauses
+        return clauses, previous
