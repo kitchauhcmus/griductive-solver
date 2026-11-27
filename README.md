@@ -1,7 +1,9 @@
-# Griductive Solver · Football Mystery
+# Griductive Solver
 
-A playable, no-guess version of Griductive for CSC14003 Project 2. It converts
-revealed clues to CNF and uses a DPLL SAT solver to prove verdicts.
+Griductive Solver is a football-themed adaptation of Griductive for CSC14003
+Project 2. Use the clues on the pitch to work out each player's status.
+A DPLL SAT solver checks each verdict before the card reveals a new clue.
+
 
 ## Run the game
 
@@ -62,3 +64,4 @@ The [CNF encoder](griductive/cnf.py) converts those facts into clauses, and the
 See the [project report](Report.pdf) for the algorithms and results,
 the [VS Code guide](docs/VSCODE_GUIDE.md) and [integration guide](docs/TEAM_INTEGRATION.md)
 for development, and the [image credits](assets/CREDITS.md) for photo sources and licenses.
+
