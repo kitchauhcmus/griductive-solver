@@ -61,7 +61,6 @@ The [CNF encoder](griductive/cnf.py) converts those facts into clauses, and the
 [DPLL solver](griductive/dpll.py) checks whether the opposite verdict is possible.
 [GameController](griductive/controller.py) opens a card after the Agent proves its verdict.
 
-See the [project report](Report.pdf) for the algorithms and results,
-the [VS Code guide](docs/VSCODE_GUIDE.md) and [integration guide](docs/TEAM_INTEGRATION.md)
-for development, and the [image credits](assets/CREDITS.md) for photo sources and licenses.
+See the [project report](Report.pdf) for the algorithms and results, and the
+[image credits](assets/CREDITS.md) for photo sources and licenses.
 
