@@ -338,7 +338,14 @@ ghép CNF của manh mối công khai và các mệnh đề đơn vị của ph�
 Với những phép toán trung gian như XOR, bộ mã hóa có thể gắn một
 biến phụ với kết quả rồi thêm các mệnh đề buộc hai vế tương đương.
 Đây là cách dùng biến định nghĩa trong phép chuyển CNF của
-Tseitin~\cite{tseitin}.
+Tseitin~\cite{tseitin}. Với các phép mã hóa có biến phụ, yêu cầu
+đúng đắn là: một phép gán các biến chính thỏa ngữ nghĩa manh mối
+khi và chỉ khi phép gán đó có thể được mở rộng thành phép gán các
+biến phụ thỏa CNF.
+
+Quy ước $l_a(s)=C_a$ khi $s$ là \code{CRIMINAL}, và
+$l_a(s)=\neg C_a$ khi $s$ là \code{INNOCENT}. Vì vậy, manh mối \code{FACT}
+được mã hóa thành mệnh đề đơn vị $(l_a(s))$.
 
 Với vùng $R=(i_1,\dots,i_m)$, đặt $\ell_j=C_{i_j}$ nếu đếm
 \code{CRIMINAL}, hoặc $\ell_j=\neg C_{i_j}$ nếu đếm
@@ -452,8 +459,9 @@ phép gán trên biến chính với ngữ nghĩa manh mối. Cài đặt có
 $O(m^2)$ biến phụ và $O(m^3)$ mệnh đề do loại trừ theo từng cặp ở
 mỗi hàng.
 
-Ý tưởng đếm dần theo tiền tố cũng xuất hiện trong bộ đếm tuần tự
-của Sinz~\cite{sinz}. Hai cách biểu diễn khác là ghép các số đếm
+Ý tưởng đếm dần theo tiền tố có điểm chung với bộ đếm tuần tự của
+Sinz~\cite{sinz}; cách cài đặt ở đây dùng trạng thái one-hot và ràng
+buộc loại trừ từng cặp trạng thái. Hai cách biểu diễn khác là ghép các số đếm
 trên cây nhị phân như bộ \emph{totalizer} của Bailleux và
 Boufkhad~\cite{totalizer}, hoặc dùng mạng so sánh để mã hóa ngưỡng
 như mạng đếm của Asín và cộng sự~\cite{cardinality-networks}.
@@ -501,9 +509,18 @@ biến đạt tới ở độ sâu 0 đúng tại gốc. Ở độ sâu kế ti�
 các hội giữa literal đích và trạng thái đạt tới của hàng xóm, rồi
 mã hóa tương đương với hội/tuyển vừa nêu. Sau $m-1$ lớp, mọi ô
 đích phải đạt tới. Tập ô đích rỗng thỏa liên thông theo quy ước
-của \code{is_connected}. Với \code{GROUP_MOST} và
-\code{GROUP_ONLY}, nhóm có thể là hàng, cột, nghề nghiệp hoặc
-vùng tám lân cận quanh mỗi người.
+của \code{is_connected}.
+
+Nếu tập ô đích khác rỗng, các mệnh đề chọn gốc buộc đúng một ô đích
+được chọn làm gốc, cụ thể là ô đích đầu tiên theo thứ tự vùng. Quy
+nạp theo độ sâu cho thấy biến đạt tới đúng khi ô đích có đường đi từ
+gốc dài không quá độ sâu đó. Nếu tập ô đích liên thông, mọi ô đích
+đều cách gốc không quá $m-1$ cạnh; chiều ngược lại, nếu mọi ô đích
+đạt tới từ gốc thì tập ô đích liên thông. Vì mỗi ô có nhiều nhất
+bốn ô kề cạnh, mã hóa này dùng $O(m^2)$ biến phụ và $O(m^2)$ mệnh đề.
+
+Với \code{GROUP_MOST} và \code{GROUP_ONLY}, nhóm có thể là hàng,
+cột, nghề nghiệp hoặc vùng tám lân cận quanh mỗi người.
 
 Việc tạo một lớp biến cho mỗi bước cũng là ý tưởng dùng trong
 kiểm tra mô hình có chặn, nơi một đường chạy hữu hạn được mã hóa
